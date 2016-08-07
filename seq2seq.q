@@ -110,7 +110,7 @@ ofw:{[oseq;t]L:1;show "OFProp:Output seq. ";show oseq[t];h:embfw[L;oseq[t]];h:LS
 
 softmaxfw:{[ix]smt::smt+1;y:smw$ix;y:exp(y-max(y));y:y%sum y;$[0=count smpreds;smpreds::(1,isz)#y;smpreds::(smpreds, enlist y)];$[0=count smx;smx::(1,hsz)#ix;smx::(smx, enlist ix)];y}
 
-kumar:ofw[(0;1);0];
+kumar:ofw[(0;2);0];
 show "Predictions :";
 show smpreds;
 
@@ -119,7 +119,8 @@ show smpreds;
 / Reverse the output sequence
 /Y:reverse(Y);
 show "Output backprop ::::::";
-obw:{[oseq;t]L:1;show "OBProp:Output sequence:";h:softmaxbw[oseq[t]];dh:LSTMbw[L;h];h:embbw[L;h];$[t<(-1+count oseq);ofw[oseq;t+1];h]}
+/obw:{[oseq;t]L:1;show "OBProp:Output sequence:";h:softmaxbw[oseq[t]];dh:LSTMbw[L;h];h:embbw[L;h];$[t<(-1+count oseq);ofw[oseq;t+1];h]}
+obw:{[oseq;t]L:1;show "OBProp:Output sequence:";show oseq[t];dh:raze softmaxbw[oseq[t]];dh:LSTMbw[L;dh];$[t<(-1+count oseq);obw[oseq;t+1];dh]}
 
 softmaxbw:{[i]smt::smt-1;
 	$[0=count smtargets;smtargets::i;smtargets::(smtargets, enlist i)];
@@ -137,7 +138,7 @@ softmaxbw:{[i]smt::smt-1;
 	/ Here, we're using one layer each for INPUT and
 	/ OUTPUT.
 LSTMbw:{[L;dh]t:LSTMt[L];
-	dh:raze over dh+Ldhprev[L]; 
+	dh:dh+raze Ldhprev[L]; 
 
 	tmp:LSTMct[L;t]; 
 	dC:((1-tmp*tmp)*LSTMog[L;t]*dh)+raze Ldcprev[L]; 
@@ -182,5 +183,9 @@ LSTMbw:{[L;dh]t:LSTMt[L];
 	dX:dX+(flip Lwxo[L])$doutput;
 	dX:dX+(flip Lwxj[L])$dupdate;
 	LSTMt[L]::LSTMt[L]-1;
-
+	show "LSTM";
 	dX }
+
+o:obw[(0;2);0]; / oseq,t=0
+show o;
+/ LTM backward for output done till here. 
