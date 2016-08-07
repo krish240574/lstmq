@@ -64,7 +64,7 @@ smdw:(isz,hsz)#0; /osz,hsz
 /X:(2;1); 
 
 / input forward - embedding, then lstm
-ifw:{[iseq;t]L:0;show "Input seq. "; show iseq[t];h:embfw[L;iseq[t]];h:LSTMfw[L;h];$[t<(-1+count iseq);ifw[iseq;t+1];h]}
+ifw:{[iseq;t]L:0;show "IFProp:Input seq. "; show iseq[t];h:embfw[L;iseq[t]];h:LSTMfw[L;h];$[t<(-1+count iseq);ifw[iseq;t+1];h]}
 
 embfw:{[L;i]$[0=count embx[L;0];embx[L;0]::enlist i;embx[L;0]::(embx[L;0], enlist i)];et[L]::et[L]+1;embw[L;i]}
 
@@ -106,9 +106,10 @@ kumar:ifw[(2;1);0];
 
 / output forward - Embedding, LSTM, softmax
 
-ofw:{[oseq;t]L:1;show "Output seq. ";show oseq[t];h:embfw[L;oseq[t]];h:LSTMfw[L;h];h:softmaxfw[h];$[t<(-1+count oseq);ofw[oseq;t+1];h]}
+ofw:{[oseq;t]L:1;show "OFProp:Output seq. ";show oseq[t];h:embfw[L;oseq[t]];h:LSTMfw[L;h];h:softmaxfw[h];$[t<(-1+count oseq);ofw[oseq;t+1];h]}
 
-softmaxfw:{[ix]smt::smt+1;y:smw$ix;y:exp(y-max(y));y:y%sum y;$[0=count smpreds;smpreds::y;smpreds::(smpreds, enlist y)];$[0=count smx;smx::ix;smx::(smx, enlist ix)];y}
+softmaxfw:{[ix]smt::smt+1;y:smw$ix;y:exp(y-max(y));y:y%sum y;$[0=count smpreds;smpreds::(1,isz)#y;smpreds::(smpreds, enlist y)];$[0=count smx;smx::(1,hsz)#ix;smx::(smx, enlist ix)];y}
+
 kumar:ofw[(0;1);0];
 show "Predictions :";
 show smpreds;
@@ -117,9 +118,17 @@ show smpreds;
 / Output layers - backward pass now.
 / Reverse the output sequence
 /Y:reverse(Y);
-obw:{[oseq;t]L:1;show "Output sequence:";h:softmaxbw[oseq[t]];dh:LSTMbw[L;h];h:embbw[L;h];$[t<(-1+count oseq);ofw[oseq;t+1];h]}
+show "Output backprop ::::::";
+obw:{[oseq;t]L:1;show "OBProp:Output sequence:";h:softmaxbw[oseq[t]];dh:LSTMbw[L;h];h:embbw[L;h];$[t<(-1+count oseq);ofw[oseq;t+1];h]}
 
-softmaxbw:{[i]smt::smt-1;$[0=count smtargets;smtargets::i;smtargets::(smtargets, enlist i)];tmpx:(hsz,1)#smx[smt];tmpd:(1,osz)#smpreds[smt];tmpd[0;i]:tmpd[0;i]-1;smdw:(tmpd*/:tmpx);delta:((flip smw)$(flip tmpd));flip delta}
+softmaxbw:{[i]smt::smt-1;
+	$[0=count smtargets;smtargets::i;smtargets::(smtargets, enlist i)];
+	tmpx:raze over ((hsz,1)#smx[smt]);
+	tmpd:raze over ((1,isz)#smpreds[smt]);
+	tmpd[i]:tmpd[i]-1;
+	smdw::smdw+flip (tmpd*/:tmpx);
+	delta:(1,hsz)#(flip smw)$tmpd; delta
+ }
 
 
 / Need to check here, if there is a 'next'
@@ -128,27 +137,36 @@ softmaxbw:{[i]smt::smt-1;$[0=count smtargets;smtargets::i;smtargets::(smtargets,
 	/ Here, we're using one layer each for INPUT and
 	/ OUTPUT.
 LSTMbw:{[L;dh]t:LSTMt[L];
-	dh:dh+Ldhprev[L]; 
+	dh:raze over dh+Ldhprev[L]; 
+
 	tmp:LSTMct[L;t]; 
 	dC:((1-tmp*tmp)*LSTMog[L;t]*dh)+raze Ldcprev[L]; 
+
 	tmp:LSTMig[L;t]; 
 	dinput:(tmp*(1-tmp))*LSTMcupd[L;t]*dC; 
+
 	tmp:LSTMfg[L;t]; 
 	dforget:(tmp*(1-tmp))*LSTMc[L;t-1]*dC; 
+
 	tmp:LSTMog[L;t]; 
 	doutput:(tmp*(1-tmp))*LSTMct[L;t]*dh; 
+
 	tmp:LSTMcupd[L;t]; 
 	dupdate:(1-tmp*tmp)*LSTMig[L;t]*dC; 
+
 	Ldcprev[L]::LSTMfg[L;t]*dC; 
+
 	Lbi[L]::Lbi[L]+dinput;
 	Lbf[L]::Lbf[L]+dforget;
 	Lbo[L]::Lbo[L]+doutput; 
 	Lbj[L]::Lbj[L]+dupdate; 
+
 	hin:LSTMh[L;t-1]; 
 	Ldwxi[L]::Ldwxi[L]+(dinput*/:LSTMx[L;t]); 
 	Ldwxf[L]::Ldwxf[L]+(dforget*/:LSTMx[L;t]);
 	Ldwxo[L]::Ldwxo[L]+(doutput*/:LSTMx[L;t]); 
 	Ldwxj[L]::Ldwxj[L]+(dupdate*/:LSTMx[L;t]);
+	
 	Ldwhi[L]::Ldwhi[L]+(dinput*/:hin);
 	Ldwhf[L]::Ldwhf[L]+(dforget*/:hin);
 	Ldwho[L]::Ldwho[L]+(doutput*/:hin);
@@ -164,5 +182,5 @@ LSTMbw:{[L;dh]t:LSTMt[L];
 	dX:dX+(flip Lwxo[L])$doutput;
 	dX:dX+(flip Lwxj[L])$dupdate;
 	LSTMt[L]::LSTMt[L]-1;
-	dX 
-	}
+
+	dX }
