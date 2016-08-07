@@ -70,15 +70,13 @@ smdw:(osz,hsz)#0;
 / input forward
 et[L]:0; / global time
 
-X:(2;1); / input seq
-/input:0; / each unit of input seq
-/ifw et[L] (0)
+/ input seq
+X:(2;1); 
+
 / input forward - embedding, then lstm
-/ifw:{[t]h:embfw[X[t]];h:LSTMfw[h];$[t<(count X);ifw[t+1];h]}
-ifw:{[t]h:embfw[X[t]];$[t<(count X);ifw[t+1];h]};
+ifw:{[t]show "Input seq. "; show X[t];h:embfw[X[t]];h:LSTMfw[h];$[t<(-1+count X);ifw[t+1];h]}
 
 embfw:{[i]$[0=count embx[L;0];embx[L;0]::enlist i;embx[L;0]::(embx[L;0], enlist i)];et[L]::et[L]+1;embw[L;i]}
-/xt:embfw 0;
 
 LSTMfw:{[xt]if[L=OUTPUT;LSTMh[L;0]::LSTMh[INPUT;LSTMt[INPUT]];LSTMc[L;0]::LSTMc[INPUT;LSTMt[INPUT]]];
 	LSTMt[L]::LSTMt[L]+1;
@@ -102,8 +100,9 @@ LSTMfw:{[xt]if[L=OUTPUT;LSTMh[L;0]::LSTMh[INPUT;LSTMt[INPUT]];LSTMc[L;0]::LSTMc[
 	LSTMx[L]::(LSTMx[L], enlist xt);
 	LSTMh[L;t]
  }
-kumar:embfw 0;
-show kumar;
+kumar:ifw 0;
+/show kumar;
+
 / output forward - Embedding, LSTM, softmax
 L:OUTPUT;
 EOS:0;
@@ -111,15 +110,9 @@ Y:1;
 Y:(0;Y);
 et[L]:0;
 
-ofw:{[t]:input::Y[t];h:embfw[input];h:LSTMfw[h];h:softmaxfw[h];$[t<(count Y);ofw[t+1];h]}
+ofw:{[t]show "Output seq. ";show Y[t];h:embfw[Y[t]];h:LSTMfw[h];h:softmaxfw[h];$[t<(-1+count Y);ofw[t+1];h]}
 
 softmaxfw:{[ix]smt::smt+1;y:smw$ix;y:exp(y-max(y));y:y%sum y;$[0=count smpreds;smpreds::y;smpreds::(smpreds;y)];$[0=count smx;smx::ix;smx::(smx;ix)];y}
-/kumar:ofw 0;
+kumar:ofw 0;
 show "Predictions :";
-show kumar;
-
-
-
-
-
-        
+show smpreds;
