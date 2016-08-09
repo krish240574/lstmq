@@ -24,6 +24,8 @@ Lwx:((2,hsz,esz)#nor 100;(2,hsz,esz)#nor 100;(2,hsz,esz)#nor 100;(2,hsz,esz)#nor
 / Lwxj:(2,hsz,esz)#nor 100; / 2,hsz,esz
 
 Lb:((2,hsz)#0;(2,hsz)#0;(2,hsz)#0;3*(2,hsz)#1); / bi;bf;bo;bj
+Ldb:((2,hsz)#0;(2,hsz)#0;(2,hsz)#0;(2,hsz)#0); / bi;bf;bo;bj
+
 / Lbi:(2,hsz)#0;
 / Lbo:(2,hsz)#0;
 / Lbj:(2,hsz)#0;
@@ -122,9 +124,23 @@ ifw[(2;1);0];
 
 / output forward - Embedding, LSTM, softmax
 
-ofw:{[oseq;t]L:1;show "OFProp:Output seq. ";show oseq[t];h:embfw[L;oseq[t]];h:LSTMfw[L;h];h:softmaxfw[h];$[t<(-1+count oseq);ofw[oseq;t+1];h]}
+ofw:{[oseq;t]L:1;
+	show "OFProp:Output seq. ";
+	show oseq[t];
+	h:embfw[L;oseq[t]];
+	h:LSTMfw[L;h];
+	h:softmaxfw[h];
+	$[t<(-1+count oseq);ofw[oseq;t+1];h]
+ }
 
-softmaxfw:{[ix]smt::smt+1;y:smw$ix;y:exp(y-max(y));y:y%sum y;$[0=count smpreds;smpreds::(1,isz)#y;smpreds::(smpreds, enlist y)];$[0=count smx;smx::(1,hsz)#ix;smx::(smx, enlist ix)];y}
+softmaxfw:{[ix]smt::smt+1;
+	y:smw$ix;
+	y:exp(y-max(y));
+	y:y%sum y;
+	$[0=count smpreds;smpreds::(1,isz)#y;smpreds::(smpreds, enlist y)];
+	$[0=count smx;smx::(1,hsz)#ix;smx::(smx, enlist ix)];
+	y
+ }
 
 ofw[(0;2);0];
 /show "Predictions :";
@@ -134,9 +150,15 @@ ofw[(0;2);0];
 / Output layers - backward pass now.
 / Reverse the output sequence
 /Y:reverse(Y);
-show "Output backprop ::::::";
+/show "Output backprop ::::::";
 /obw:{[oseq;t]L:1;show "OBProp:Output sequence:";h:softmaxbw[oseq[t]];dh:LSTMbw[L;h];h:embbw[L;h];$[t<(-1+count oseq);ofw[oseq;t+1];h]}
-obw:{[oseq;t]L:1;show "OBProp:Output sequence:";show oseq[t];dh:raze softmaxbw[oseq[t]];dh:LSTMbw[L;dh];$[t<(-1+count oseq);obw[oseq;t+1];dh]}
+obw:{[oseq;c]L:1;
+	show "OBProp:Output sequence:";
+	show oseq[c];
+	dh:raze softmaxbw[oseq[c]];
+	dh:LSTMbw[L;dh];
+	dh:embbw[L;dh];
+	$[c<(-1+count oseq);obw[oseq;c+1];dh]}
 
 softmaxbw:{[i]smt::smt-1;
 	$[0=count smtargets;smtargets::i;smtargets::(smtargets, enlist i)];
@@ -153,7 +175,11 @@ softmaxbw:{[i]smt::smt-1;
 	/ Applicable when in a deep LSTM setup
 	/ Here, we're using one layer each for INPUT and
 	/ OUTPUT.
-LSTMbw:{[L;dh]t:LSTMt[L];
+LSTMbw:{[L;dh]INPUT:0;OUTPUT:0;
+
+	if[L=INPUT;Ldhprev[L]::Ldhprev[OUTPUT];Ldcprev[L]::Ldcprev[OUTPUT]];
+	
+	t:LSTMt[L];
 	dh:dh+raze Ldhprev[L]; 
 
 	tmp:LSTMct[L;t]; 
@@ -173,10 +199,10 @@ LSTMbw:{[L;dh]t:LSTMt[L];
 
 	Ldcprev[L]::LSTMfg[L;t]*dC; 
 
-	Lb[0;L]::Lb[0;L]+dinput;
-	Lb[1;L]::Lb[1;L]+dforget;
-	Lb[2;L]::Lb[2;L]+doutput; 
-	Lb[3;L]::Lb[3;L]+dupdate; 
+	Ldb[0;L]::Ldb[0;L]+dinput;
+	Ldb[1;L]::Ldb[1;L]+dforget;
+	Ldb[2;L]::Ldb[2;L]+doutput; 
+	Ldb[3;L]::Ldb[3;L]+dupdate; 
 
 	hin:LSTMh[L;t-1]; 
 	Ldwx[0;L]::Ldwx[0;L]+(dinput*/:LSTMx[L;t]); 
@@ -201,24 +227,24 @@ LSTMbw:{[L;dh]t:LSTMt[L];
 	LSTMt[L]::LSTMt[L]-1;
 	dX };
 
-obw[(0;2);0]; / oseq,t=0
+embbw:{[L;delta]et[L]::et[L]-1;	tx:raze embx[L];tx:tx[et[L]];embdw[L;tx]::embdw[L;tx]+delta}
+
+obw[reverse(2;0);0]; / oseq,counter=0
 /show o;
 
-embbw:{[L;delta]et[L]::et[L]-1;
-	tx:raze embx[L]; 
-	tx:tx[et[L]];
-	embdw[L;tx]::embdw[L;tx]+delta};
+
 
 /input backward pass
-ibw:{[iseq;t]show "Iseq = ";
-	show iseq[t];
-	L:0;
+ibw:{[iseq;c]L:0;
+	show "IBProp:Input sequence:";
+	show iseq[c];
 	delta:raze (1,hsz)#0;
 	delta:LSTMbw[L;delta];
-	show "LSTM delta "; 
-	show delta; 
 	delta:embbw[L;delta];
-	$[t<(-1+count iseq);ibw[iseq;t+1];delta]}
+	$[c<(-1+count iseq);ibw[iseq;c+1];delta]
+ }
 
-show "input backward";
-show ibw[reverse(2;1);0];
+/show "input backward";
+/oo:embbw[0;raze (1,hsz)#0];
+ibw[reverse(2;1);0];
+/show oo;
