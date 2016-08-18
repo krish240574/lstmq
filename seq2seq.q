@@ -31,13 +31,13 @@ Ldb:((2,hsz)#0;(2,hsz)#0;(2,hsz)#0;(2,hsz)#0); / bi;bf;bo;bj
 / Lbj:(2,hsz)#0;
 / Lbf:(2,hsz)#1;
 
-Ldwx:((2,hsz,esz)#nor 100;(2,hsz,esz)#nor 100;(2,hsz,esz)#nor 100;(2,hsz,esz)#nor 100); 
+Ldwx:((2,hsz,esz)#0;(2,hsz,esz)#0;(2,hsz,esz)#0;(2,hsz,esz)#0); 
 / Ldwxi:(2,hsz,hsz)#nor 100; /2,hsz,esz
 / Ldwxf:(2,hsz,hsz)#nor 100; /2,hsz,esz
 / Ldwxo:(2,hsz,hsz)#nor 100; /2,hsz,esz
 / Ldwxj:(2,hsz,hsz)#nor 100; /2,hsz,esz
 
-Ldwh:((2,hsz,hsz)#nor 100;(2,hsz,hsz)#nor 100;(2,hsz,hsz)#nor 100;(2,hsz,hsz)#nor 100);
+Ldwh:((2,hsz,hsz)#0;(2,hsz,hsz)#0;(2,hsz,hsz)#0;(2,hsz,hsz)#0);
 
 / Ldwhi:(2,hsz,hsz)#nor 100;
 / Ldwhf:(2,hsz,hsz)#nor 100;
@@ -248,3 +248,16 @@ ibw:{[iseq;c]L:0;
 /oo:embbw[0;raze (1,hsz)#0];
 ibw[reverse(2;1);0];
 /show oo;
+
+/ gradient clipping and parameter updation
+/ sum gradients for all layers and clip if necessary
+clipgrad:5.0;
+lr:0.7;
+normalizegrads:{[n]Ldwx::Ldwx%n;Ldwh::Ldwh%n;embdw::embdw%n;smdw::smdw%n};
+takestep:{Lwx::Lwx-lr*Ldwx;Lwh::Lwh-lr*Ldwh;embw::embw-lr*embdw;smw::smw-lr*smdw;Lb::Lb-lr*Ldb};
+gradnorm: sqrt((sum over Ldwx xexp 2) + (sum over Ldwh xexp 2) + (sum over embdw xexp 2) + (sum over smdw xexp 2));
+if[gradnorm>clipgrad;normalizegrads(gradnorm%clipgrad)];
+takestep[lr];
+
+getCost:sum {-1*log((smpreds[x])[smtargets[x]])}each til count smtargets
+show getCost;
