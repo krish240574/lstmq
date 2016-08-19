@@ -6,43 +6,43 @@ isz:4; / vsz=4 also;osz = 4 also
 
 
 /Embedding
-embw:(2,isz,hsz)#(nor 100); /2,vsz,esz
+embw:(2,isz,hsz)#((nor 100)%100); /2,vsz,esz
 embdw:(2,isz,hsz)#0.0; /2,vsz,esz
 et:(0;0); / time pointer in embedding
-embx:2 1#(); 
+embx:(2 1)#(); 
 / LSTM
-Lwh:((2,hsz,hsz)#nor 100;(2,hsz,hsz)#nor 100;(2,hsz,hsz)#nor 100;(2,hsz,hsz)#nor 100); /i,f,o,j
-/ Lwhi:(2,hsz,hsz)#nor 100;
-/ Lwhf:(2,hsz,hsz)#nor 100;
-/ Lwho:(2,hsz,hsz)#nor 100;
-/ Lwhj:(2,hsz,hsz)#nor 100;
+Lwh:((2,hsz,hsz)#((nor 100)%100);(2,hsz,hsz)#((nor 100)%100);(2,hsz,hsz)#((nor 100)%100);(2,hsz,hsz)#((nor 100)%100)); /i,f,o,j
+/ Lwhi:(2,hsz,hsz)#((nor 100)%100);
+/ Lwhf:(2,hsz,hsz)#((nor 100)%100);
+/ Lwho:(2,hsz,hsz)#((nor 100)%100);
+/ Lwhj:(2,hsz,hsz)#((nor 100)%100);
 
-Lwx:((2,hsz,esz)#nor 100;(2,hsz,esz)#nor 100;(2,hsz,esz)#nor 100;(2,hsz,esz)#nor 100);
-/ Lwxi:(2,hsz,esz)#nor 100; / 2,hsz,esz , esz coult be different !
-/ Lwxf:(2,hsz,esz)#nor 100; / 2,hsz,esz
-/ Lwxo:(2,hsz,esz)#nor 100; / 2,hsz,esz
-/ Lwxj:(2,hsz,esz)#nor 100; / 2,hsz,esz
+Lwx:((2,hsz,esz)#((nor 100)%100);(2,hsz,esz)#((nor 100)%100);(2,hsz,esz)#((nor 100)%100);(2,hsz,esz)#((nor 100)%100));
+/ Lwxi:(2,hsz,esz)#((nor 100)%100); / 2,hsz,esz , esz coult be different !
+/ Lwxf:(2,hsz,esz)#((nor 100)%100); / 2,hsz,esz
+/ Lwxo:(2,hsz,esz)#((nor 100)%100); / 2,hsz,esz
+/ Lwxj:(2,hsz,esz)#((nor 100)%100); / 2,hsz,esz
 
-Lb:((2,hsz)#0;(2,hsz)#0;(2,hsz)#0;3*(2,hsz)#1); / bi;bf;bo;bj
-Ldb:((2,hsz)#0;(2,hsz)#0;(2,hsz)#0;(2,hsz)#0); / bi;bf;bo;bj
+Lb:((2,hsz)#0f;(2,hsz)#0f;(2,hsz)#0f;3*(2,hsz)#1f); / bi;bf;bo;bj
+Ldb:((2,hsz)#0f;(2,hsz)#0f;(2,hsz)#0f;(2,hsz)#0f); / bi;bf;bo;bj
 
 / Lbi:(2,hsz)#0;
 / Lbo:(2,hsz)#0;
 / Lbj:(2,hsz)#0;
 / Lbf:(2,hsz)#1;
 
-Ldwx:((2,hsz,esz)#0;(2,hsz,esz)#0;(2,hsz,esz)#0;(2,hsz,esz)#0); 
-/ Ldwxi:(2,hsz,hsz)#nor 100; /2,hsz,esz
-/ Ldwxf:(2,hsz,hsz)#nor 100; /2,hsz,esz
-/ Ldwxo:(2,hsz,hsz)#nor 100; /2,hsz,esz
-/ Ldwxj:(2,hsz,hsz)#nor 100; /2,hsz,esz
+Ldwx:((2,hsz,esz)#0f;(2,hsz,esz)#0f;(2,hsz,esz)#0f;(2,hsz,esz)#0f); 
+/ Ldwxi:(2,hsz,hsz)#((nor 100)%100); /2,hsz,esz
+/ Ldwxf:(2,hsz,hsz)#((nor 100)%100); /2,hsz,esz
+/ Ldwxo:(2,hsz,hsz)#((nor 100)%100); /2,hsz,esz
+/ Ldwxj:(2,hsz,hsz)#((nor 100)%100); /2,hsz,esz
 
-Ldwh:((2,hsz,hsz)#0;(2,hsz,hsz)#0;(2,hsz,hsz)#0;(2,hsz,hsz)#0);
+Ldwh:((2,hsz,hsz)#0f;(2,hsz,hsz)#0f;(2,hsz,hsz)#0f;(2,hsz,hsz)#0f);
 
-/ Ldwhi:(2,hsz,hsz)#nor 100;
-/ Ldwhf:(2,hsz,hsz)#nor 100;
-/ Ldwho:(2,hsz,hsz)#nor 100;
-/ Ldwhj:(2,hsz,hsz)#nor 100;
+/ Ldwhi:(2,hsz,hsz)#((nor 100)%100);
+/ Ldwhf:(2,hsz,hsz)#((nor 100)%100);
+/ Ldwho:(2,hsz,hsz)#((nor 100)%100);
+/ Ldwhj:(2,hsz,hsz)#((nor 100)%100);
 
 LSTMx:(2 1)#"0";
 LSTMt:(0;0); / time pointer in LSTM
@@ -65,7 +65,7 @@ smpreds:();
 smx:();
 smtargets:();
 smt:0;
-smw:(isz,hsz)#nor 100; /osz,hsz
+smw:(isz,hsz)#((nor 100)%100); /osz,hsz
 smdw:(isz,hsz)#0; /osz,hsz
 
 / input seq
@@ -73,8 +73,8 @@ smdw:(isz,hsz)#0; /osz,hsz
 
 / input forward - embedding, then lstm
 ifw:{[iseq;t]L:0;
-	show "IFProp:Input seq. "; 
-	show iseq[t];
+	/ show "IFProp:Input seq. "; 
+	/ show iseq[t];
 	h:embfw[L;iseq[t]];
 	h:LSTMfw[L;h];
 	$[t<(-1+count iseq);ifw[iseq;t+1];h]
@@ -86,7 +86,7 @@ embfw:{[L;i]$[0=count embx[L;0];embx[L;0]::enlist i;embx[L;0]::(embx[L;0], enlis
  }
 
 LSTMfw:{[L;xt]INPUT:0;OUTPUT:1;
-	if[L=OUTPUT;LSTMh[L;0]::LSTMh[INPUT;LSTMt[INPUT]];LSTMc[L;0]::LSTMc[INPUT;LSTMt[INPUT]]];
+	/if[L=OUTPUT;LSTMh[L;0]::LSTMh[INPUT;LSTMt[INPUT]];LSTMc[L;0]::LSTMc[INPUT;LSTMt[INPUT]]];
 	
 	LSTMt[L]::LSTMt[L]+1;
 	t:LSTMt[L];
@@ -119,14 +119,12 @@ LSTMfw:{[L;xt]INPUT:0;OUTPUT:1;
 
 	LSTMh[L;t]
  }
-ifw[(2;1);0];
-/show kumar;
+/ifw[(2;1);0];
 
 / output forward - Embedding, LSTM, softmax
-
 ofw:{[oseq;t]L:1;
-	show "OFProp:Output seq. ";
-	show oseq[t];
+	/ show "OFProp:Output seq. ";
+	/ show oseq[t];
 	h:embfw[L;oseq[t]];
 	h:LSTMfw[L;h];
 	h:softmaxfw[h];
@@ -142,19 +140,14 @@ softmaxfw:{[ix]smt::smt+1;
 	y
  }
 
-ofw[(0;2);0];
-/show "Predictions :";
-/show smpreds;
+/ofw[(0;2);0];
 
 
 / Output layers - backward pass now.
 / Reverse the output sequence
-/Y:reverse(Y);
-/show "Output backprop ::::::";
-/obw:{[oseq;t]L:1;show "OBProp:Output sequence:";h:softmaxbw[oseq[t]];dh:LSTMbw[L;h];h:embbw[L;h];$[t<(-1+count oseq);ofw[oseq;t+1];h]}
 obw:{[oseq;c]L:1;
-	show "OBProp:Output sequence:";
-	show oseq[c];
+	/ show "OBProp:Output sequence:";
+	/ show oseq[c];
 	dh:raze softmaxbw[oseq[c]];
 	dh:LSTMbw[L;dh];
 	dh:embbw[L;dh];
@@ -171,13 +164,13 @@ softmaxbw:{[i]smt::smt-1;
 
 
 / Need to check here, if there is a 'next'
-	/ In that case, use the dhprev from 'next'
-	/ Applicable when in a deep LSTM setup
-	/ Here, we're using one layer each for INPUT and
-	/ OUTPUT.
+/ In that case, use the dhprev from 'next'
+/ Applicable when in a deep LSTM setup
+/ Here, we're using one layer each for INPUT and
+/ OUTPUT.
 LSTMbw:{[L;dh]INPUT:0;OUTPUT:0;
 
-	if[L=INPUT;Ldhprev[L]::Ldhprev[OUTPUT];Ldcprev[L]::Ldcprev[OUTPUT]];
+	/if[L=INPUT;Ldhprev[L]::Ldhprev[OUTPUT];Ldcprev[L]::Ldcprev[OUTPUT]];
 	
 	t:LSTMt[L];
 	dh:dh+raze Ldhprev[L]; 
@@ -229,35 +222,125 @@ LSTMbw:{[L;dh]INPUT:0;OUTPUT:0;
 
 embbw:{[L;delta]et[L]::et[L]-1;	tx:raze embx[L];tx:tx[et[L]];embdw[L;tx]::embdw[L;tx]+delta}
 
-obw[reverse(2;0);0]; / oseq,counter=0
-/show o;
-
-
 
 /input backward pass
 ibw:{[iseq;c]L:0;
-	show "IBProp:Input sequence:";
-	show iseq[c];
+	/ show "IBProp:Input sequence:";
+	/ show iseq[c];
 	delta:raze (1,hsz)#0;
 	delta:LSTMbw[L;delta];
 	delta:embbw[L;delta];
 	$[c<(-1+count iseq);ibw[iseq;c+1];delta]
  }
 
-/show "input backward";
-/oo:embbw[0;raze (1,hsz)#0];
-ibw[reverse(2;1);0];
-/show oo;
-
-/ gradient clipping and parameter updation
-/ sum gradients for all layers and clip if necessary
 clipgrad:5.0;
-lr:0.7;
+lr:0.01;
 normalizegrads:{[n]Ldwx::Ldwx%n;Ldwh::Ldwh%n;embdw::embdw%n;smdw::smdw%n};
 takestep:{Lwx::Lwx-lr*Ldwx;Lwh::Lwh-lr*Ldwh;embw::embw-lr*embdw;smw::smw-lr*smdw;Lb::Lb-lr*Ldb};
-gradnorm: sqrt((sum over Ldwx xexp 2) + (sum over Ldwh xexp 2) + (sum over embdw xexp 2) + (sum over smdw xexp 2));
-if[gradnorm>clipgrad;normalizegrads(gradnorm%clipgrad)];
-takestep[lr];
 
-getCost:sum {-1*log((smpreds[x])[smtargets[x]])}each til count smtargets
-show getCost;
+/ Get cost for this training run
+getCost:{[dummy]sum {-1*log((smpreds[x])[smtargets[x]])}each til count smtargets};
+
+initLayer:{[L]
+	
+	embdw[L]::(isz,hsz)#0.0; 
+	et[L]::0; 
+	embx[L]::enlist (); 
+
+	LSTMt[L]::0;
+	LSTMx[L]::"0";
+	LSTMh[L]::(1,hsz)#0;
+	LSTMc[L]::(1,hsz)#0;
+	LSTMct[L]::"0";
+
+	LSTMig[L]::"0"; 
+	LSTMfg[L]::"0";
+	LSTMog[L]::"0";
+	LSTMcupd[L]::"0";
+
+	Ldhprev[L]::(1,hsz)#0;
+	Ldcprev[L]::(1,hsz)#0;
+	INPUT:0;
+	OUTPUT:1;
+	if[L=OUTPUT;LSTMh[L;0]::LSTMh[INPUT;LSTMt[INPUT]];LSTMc[L;0]::LSTMc[INPUT;LSTMt[INPUT]]];
+	if[L=INPUT;Ldhprev[L]::Ldhprev[OUTPUT];Ldcprev[L]::Ldcprev[OUTPUT]];
+
+	Ldb[;L;]::0.0;
+	Ldwx[;L;;]::0.0;
+	Ldwh[;L;;]::0.0;
+
+	if[L=OUTPUT;
+		smpreds::();
+		smx::();
+		smtargets::();
+		smt::0;
+		smdw::(isz,hsz)#0]; /osz,hsz
+	}
+/  Forward
+/  Backward
+train:{[iseq;oseq]L:0;initLayer[L];
+	ifw[iseq;0];
+	L:1;
+	initLayer[L];
+	ofw[(0;oseq);0];
+	obw[reverse(oseq;0);0];
+	ibw[reverse(iseq);0];
+	gradnorm: sqrt((sum over Ldwx xexp 2)+(sum over Ldwh xexp 2) +(sum over embdw xexp 2)+(sum over smdw xexp 2));
+	if[gradnorm>clipgrad;normalizegrads(gradnorm%clipgrad)];
+	takestep[lr];
+	:getCost[0]
+ }
+EOS:0;
+maxl:10;
+applyoutputmodel:{[prediction;token]
+	tmp:token;
+	tmp:ofw[(enlist tmp);0];
+
+	token:sum where tmp = (max tmp);
+	show token;
+	/token:(asc tmp)[-1+count tmp];
+	if[(token<>EOS) and (maxl > count prediction);
+		$[0=count prediction;prediction:token;prediction:(prediction,enlist token)];
+		applyoutputmodel[prediction;token]
+	  ];
+	:prediction
+	}
+/ Bubble input sequence through input layers
+	/ Then send the output seq. to the output layers
+	/ whilst using the h and c values from input layer LSTM
+	/ as indicated in the paper
+predict:{[iseq]L:0;
+	initLayer[L];
+	ifw[iseq;0];
+	L:1;
+	initLayer[L];
+	prediction:();
+	prediction:applyoutputmodel[prediction;0];
+	show "Prediction =";
+	show prediction;
+	:prediction
+ }
+
+
+mainp:{[counter]
+	cost:train[(2;1);2];
+	cost:cost+train[enlist (1);1];
+	cost:cost+train[(3;1);3];
+	if[0 = (counter mod 100);
+		show "Epoch:";
+		show counter;
+		show "Training cost:";
+		show cost%3;	
+		show "Predicting for [2,1] -> ";
+		show predict[(2;1)];
+		show "Predicting for [1] -> ";
+		show predict[enlist (1)];
+		show "Predicting for [3,1] -> ";
+		show predict[(3;1)];
+		show "---------------";];
+		$[counter<1000;
+			mainp[counter+1];
+			show "Buh-bye"]
+		 }
+
+mainp[0]; 
