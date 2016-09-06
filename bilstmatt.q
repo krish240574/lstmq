@@ -32,16 +32,17 @@ Ldwx:((2,hsz,esz)#0f;(2,hsz,esz)#0f;(2,hsz,esz)#0f;(2,hsz,esz)#0f);
 Ldwh:((2,hsz,hsz)#0f;(2,hsz,hsz)#0f;(2,hsz,hsz)#0f;(2,hsz,hsz)#0f);
 LSTMx:(2 1)#"0";
 LSTMt:(0;0); / time pointer in LSTM
-LSTMh:(2,1,hsz)#0;
-LSTMc:(2,1,hsz)#0;
-LSTMct:(2 1)#"0";
+lstmH:(2,1,hsz)#0;
+lstmC:(2,1,hsz)#0;
+lstmCt:(2 1)#"0";
 /all gates here
-LSTMig:(2 1)#"0"; / 2 rows, one for input and one for output
-LSTMfg:(2 1)#"0";
-LSTMog:(2 1)#"0";
-LSTMcupd:(2 1)#"0";
+lstmIg:(2 1)#"0"; / 2 rows, one for input and one for output
+lstmFg:(2 1)#"0";
+lstmOg:(2 1)#"0";
+lstmCupd:(2 1)#"0";
 Ldhprev:(2,1,hsz)#0;
 Ldcprev:(2,1,hsz)#0;
+annot:();
 
 / Softmax variables
 smpreds:();
@@ -65,7 +66,7 @@ embfw:{[L;i]
 	et[L]::et[L]+1;
 	embw[L;i]
  }
-
+ac:-1;
 encoderfw:{[L;xt]FW:0;BW:1;
 
 	/-----------Forward LSTM FP--------------------/
@@ -73,108 +74,165 @@ encoderfw:{[L;xt]FW:0;BW:1;
 	L:FW;
 	LSTMt[L]::LSTMt[L]+1;
 	t:LSTMt[L];
-
-	h:"f"$LSTMh[L;t-1];
+	ac::ac+1;
+	h:"f"$lstmH[L;t-1];
 
 	k:(1%1+exp(-1*((Lwh[0;L]$h)+(Lwx[0;L]$xt)+Lb[0;L])));
-	LSTMig[L]::(LSTMig[L], enlist k);
+	lstmIg[L]::(lstmIg[L], enlist k);
 
 	k:(1%1+exp(-1*((Lwh[1;L]$h)+(Lwx[1;L]$xt)+Lb[1;L])));
-	LSTMfg[L]::(LSTMfg[L], enlist k);
+	lstmFg[L]::(lstmFg[L], enlist k);
 
 	k:(1%1+exp(-1*((Lwh[2;L]$h)+(Lwx[2;L]$xt)+Lb[2;L])));
-	LSTMog[L]::(LSTMog[L], enlist k);
+	lstmOg[L]::(lstmOg[L], enlist k);
 
 	tmp:(Lwh[3;L]$h)+(Lwx[3;L]$xt)+Lb[3;L];
 	k:((exp(tmp)-exp(-1*tmp)))%((exp(tmp)+exp(-1*tmp)));
-	LSTMcupd[L]::(LSTMcupd[L], enlist k);
+	lstmCupd[L]::(lstmCupd[L], enlist k);
 
-	tmp:(raze LSTMig[L;t]*LSTMcupd[L;t])+(raze LSTMfg[L;t])*LSTMc[L;t-1];
-	LSTMc[L]::(LSTMc[L], enlist tmp);
+	tmp:(raze lstmIg[L;t]*lstmCupd[L;t])+(raze lstmFg[L;t])*lstmC[L;t-1];
+	lstmC[L]::(lstmC[L], enlist tmp);
 
 	tmp:((exp(tmp)-exp(-1*tmp)))%((exp(tmp)+exp(-1*tmp)));
-	LSTMct[L]::(LSTMct[L], enlist tmp);
+	lstmCt[L]::(lstmCt[L], enlist tmp);
 
-	tmp:LSTMog[L;t]*LSTMct[L;t];
-	LSTMh[L]::(LSTMh[L], enlist tmp);
+	tmp:lstmOg[L;t]*lstmCt[L;t];
+	lstmH[L]::(lstmH[L], enlist tmp);
 
 	LSTMx[L]::(LSTMx[L], enlist xt);
 
-	t:LSTMh[L;t]
+	$[0=count annot;annot[ac]::lstmH[L;ac];annot[ac]::annot[ac],enlist(lstmH[L;ac])];
 
 	/-----------Reverse LSTM FP--------------------/
 	L:BW;
 	LSTMt[L]::LSTMt[L]-1;
 	t:LSTMt[L];
 
-	h:"f"$LSTMh[L;t+1];
+	h:"f"$lstmH[L;t+1];
 
 	k:(1%1+exp(-1*((Lwh[0;L]$h)+(Lwx[0;L]$xt)+Lb[0;L])));
-	LSTMig[L]::(LSTMig[L], enlist k);
+	lstmIg[L]::(lstmIg[L], enlist k);
 
 	k:(1%1+exp(-1*((Lwh[1;L]$h)+(Lwx[1;L]$xt)+Lb[1;L])));
-	LSTMfg[L]::(LSTMfg[L], enlist k);
+	lstmFg[L]::(lstmFg[L], enlist k);
 
 	k:(1%1+exp(-1*((Lwh[2;L]$h)+(Lwx[2;L]$xt)+Lb[2;L])));
-	LSTMog[L]::(LSTMog[L], enlist k);
+	lstmOg[L]::(lstmOg[L], enlist k);
 
 	tmp:(Lwh[3;L]$h)+(Lwx[3;L]$xt)+Lb[3;L];
 	k:((exp(tmp)-exp(-1*tmp)))%((exp(tmp)+exp(-1*tmp)));
-	LSTMcupd[L]::(LSTMcupd[L], enlist k);	
+	lstmCupd[L]::(lstmCupd[L], enlist k);	
 
-	tmp:(raze LSTMig[L;t]*LSTMcupd[L;t])+(raze LSTMfg[L;t])*LSTMc[L;t+1];
-	LSTMc[L]::(LSTMc[L], enlist tmp);
+	tmp:(raze lstmIg[L;t]*lstmCupd[L;t])+(raze lstmFg[L;t])*lstmC[L;t+1];
+	lstmC[L]::(lstmC[L], enlist tmp);
 
 	tmp:((exp(tmp)-exp(-1*tmp)))%((exp(tmp)+exp(-1*tmp)));
-	LSTMct[L]::(LSTMct[L], enlist tmp);
+	lstmCt[L]::(lstmCt[L], enlist tmp);
 
-	tmp:LSTMog[L;t]*LSTMct[L;t];
-	LSTMh[L]::(LSTMh[L], enlist tmp);
+	tmp:lstmOg[L;t]*lstmCt[L;t];
+	lstmH[L]::(lstmH[L], enlist tmp);
 
 	LSTMx[L]::(LSTMx[L], enlist xt);
 
-	:(t,LSTMh[L;t])
+	annot[ac]::annot[ac],enlist(lstmH[L;ac]);
  }
 
- decoderfw:{[L;xt]FW:0;BW:1;
+
+ decoderFw:{[L;xt]FW:0;BW:1;
 	DCDR:2;
 
 	L:DCDR;
-	LSTMh[L;0]::LSTMh[FW;LSTMt[FW]],LSTMh[BW, LSTMt[BW]];
-	LSTMc[L;0]::LSTMc[FW;LSTMt[FW]],LSTMc[BW;LSTMt[BW]];
 
+	lstmH[L;0]::lstmH[FW;LSTMt[FW]],lstmH[BW, LSTMt[BW]]; 
+	lstmC[L;0]::lstmC[FW;LSTMt[FW]],lstmC[BW;LSTMt[BW]]; 
 
 	LSTMt[L]::LSTMt[L]+1;
 	t:LSTMt[L];
 
-	h:"f"$LSTMh[L;t-1];
+	h:"f"$lstmH[L;t-1];
 
 	k:(1%1+exp(-1*((Lwh[0;L]$h)+(Lwx[0;L]$xt)+Lb[0;L])));
-	LSTMig[L]::(LSTMig[L], enlist k);
+	lstmIg[L]::(lstmIg[L], enlist k);
 
 	k:(1%1+exp(-1*((Lwh[1;L]$h)+(Lwx[1;L]$xt)+Lb[1;L])));
-	LSTMfg[L]::(LSTMfg[L], enlist k);
+	lstmFg[L]::(lstmFg[L], enlist k);
 
 	k:(1%1+exp(-1*((Lwh[2;L]$h)+(Lwx[2;L]$xt)+Lb[2;L])));
-	LSTMog[L]::(LSTMog[L], enlist k);
+	lstmOg[L]::(lstmOg[L], enlist k);
 
 	tmp:(Lwh[3;L]$h)+(Lwx[3;L]$xt)+Lb[3;L];
 	k:((exp(tmp)-exp(-1*tmp)))%((exp(tmp)+exp(-1*tmp)));
-	LSTMcupd[L]::(LSTMcupd[L], enlist k);
+	lstmCupd[L]::(lstmCupd[L], enlist k);
 
-	tmp:(raze LSTMig[L;t]*LSTMcupd[L;t])+(raze LSTMfg[L;t])*LSTMc[L;t-1];
-	LSTMc[L]::(LSTMc[L], enlist tmp);
+	tmp:(raze lstmIg[L;t]*lstmCupd[L;t])+(raze lstmFg[L;t])*lstmC[L;t-1];
+	lstmC[L]::(lstmC[L], enlist tmp);
 
 	tmp:((exp(tmp)-exp(-1*tmp)))%((exp(tmp)+exp(-1*tmp)));
-	LSTMct[L]::(LSTMct[L], enlist tmp);
+	lstmCt[L]::(lstmCt[L], enlist tmp);
 
-	tmp:LSTMog[L;t]*LSTMct[L;t];
-	LSTMh[L]::(LSTMh[L], enlist tmp);
+	tmp:lstmOg[L;t]*lstmCt[L;t];
+	lstmH[L]::(lstmH[L], enlist tmp);
 
 	LSTMx[L]::(LSTMx[L], enlist xt);
 
-	smpreds::LSTMc[L]$smw[L];
+	:lstmH[L;t] 
  }
+
+ softmaxfw:{[ix]smt::smt+1;
+	yy:smw$ix;
+	yy:exp(yy-max yy);
+	yy:yy%sum yy;
+	$[0=count smpreds;smpreds::(1,isz)#yy;smpreds::(smpreds, enlist yy)];
+	$[0=count smx;smx::(1,hsz)#ix;smx::(smx, enlist ix)];
+	yy
+ }
+
+ embfw:{[L;i]
+	$[0=count embx[L;0];embx[L;0]::enlist i;embx[L]::(embx[L], enlist i)];
+	et[L]::et[L]+1;
+	embw[L;i]
+ }
+encoder:{[iseq]
+	encoderfw[iseq];
+}
+/ https://indico.io/blog/wp-content/uploads/2016/04/figure1.jpeg
+decoder:{[oSeq]
+	lstmH[DCDR;0]:(lstmH[FW;LSTMt[FW],lstmH[BW;LSTMt[BW]]); 
+	lstmC[DCDR;0]:(lstmC[FW;LSTMt[FW],lstmC[BW;LSTMt[BW]]); 
+	t:0;
+	while[t<count oSeq;
+	if[t=0;sPrev:lstmH[DCDR;0];cPrev:lstmC[DCDR;0]]; 
+	if[t>0;sPrev:lstmH[DCDR;t-1];cPrev:lstmC[DCDR;t-1]];
+	alphasT:mlpFw[sPrev,cPrev];
+	ctx:+/alphasT*annot;
+	xT:embFW[DCDR;oSeq[t]];
+	h:decoderFw[DCDR;(xT,ctx)];
+	softmaxfw[h];
+	t:t+1]
+	}
+
+ mlpFw:{[decoderstate]
+ 	/ for state of LSTM decoder and entire annotation vector, compute alphas
+ 	annot:(lstmH[FW;],lstmH[BW;]);
+ 	szMlpInputs:count(decoderState,annot)[0]);
+ 	i:0;
+ 	mlpIB:0.0;
+ 	mlpHB:0.0;
+ 	mlpWO:((szMlpInputs),1)#(sampler[master;1000]);
+ 	mlpW:(szMlpInputs,szMlpInputs)#(sampler[master;1000]);
+ 	while[i<(count annot);
+		mlpInputs:(decoderState,annot[i]);
+    	mlpIX:(1,count mlpInputs[0])#mlpInputs;
+    	mlpHid:(1,count mlpInputs[0])#0;
+		mlpHid:mlpIB+mlpW$mlpIX; 
+		output:mlpHB+mlpHid$mlpWO;
+		$[0=count mlpO:mlpO:output;mlpO:mlpO,enlist output]
+ 		i:i+1;
+ 	];
+	alphas:(mlpO%sum mlpO);
+	:alphas
+ }
+
 
  encoderbw:{[L;dh]FW:0;BW:0;
 
@@ -187,29 +245,29 @@ encoderfw:{[L;xt]FW:0;BW:1;
 	tdh:dh;
 	dh:tdh+raze Ldhprev[L]; 
 
-	tmp:LSTMct[L;t]; 
-	dC:((1-tmp*tmp)*LSTMog[L;t]*dh)+raze Ldcprev[L]; 
+	tmp:lstmCt[L;t]; 
+	dC:((1-tmp*tmp)*lstmOg[L;t]*dh)+raze Ldcprev[L]; 
 
-	tmp:LSTMig[L;t]; 
-	dinput:(tmp*(1-tmp))*LSTMcupd[L;t]*dC; 
+	tmp:lstmIg[L;t]; 
+	dinput:(tmp*(1-tmp))*lstmCupd[L;t]*dC; 
 
-	tmp:LSTMfg[L;t]; 
-	dforget:(tmp*(1-tmp))*LSTMc[L;t+1]*dC; 
+	tmp:lstmFg[L;t]; 
+	dforget:(tmp*(1-tmp))*lstmC[L;t+1]*dC; 
 
-	tmp:LSTMog[L;t]; 
-	doutput:(tmp*(1-tmp))*LSTMct[L;t]*dh; 
+	tmp:lstmOg[L;t]; 
+	doutput:(tmp*(1-tmp))*lstmCt[L;t]*dh; 
 
-	tmp:LSTMcupd[L;t]; 
-	dupdate:(1-tmp*tmp)*LSTMig[L;t]*dC; 
+	tmp:lstmCupd[L;t]; 
+	dupdate:(1-tmp*tmp)*lstmIg[L;t]*dC; 
 
-	Ldcprev[L]::LSTMfg[L;t]*dC; 
+	Ldcprev[L]::lstmFg[L;t]*dC; 
 
 	Ldb[0;L]::Ldb[0;L]+dinput;
 	Ldb[1;L]::Ldb[1;L]+dforget;
 	Ldb[2;L]::Ldb[2;L]+doutput; 
 	Ldb[3;L]::Ldb[3;L]+dupdate; 
 
-	hin:LSTMh[L;t+1]; 
+	hin:lstmH[L;t+1]; 
 	Ldwx[0;L]::Ldwx[0;L]+(dinput*/:LSTMx[L;t]); 
 	Ldwx[1;L]::Ldwx[1;L]+(dforget*/:LSTMx[L;t]);
 	Ldwx[2;L]::Ldwx[2;L]+(doutput*/:LSTMx[L;t]); 
@@ -240,29 +298,29 @@ encoderfw:{[L;xt]FW:0;BW:1;
 
 	dh:tdh+raze Ldhprev[L]; 
 
-	tmp:LSTMct[L;t]; 
-	dC:((1-tmp*tmp)*LSTMog[L;t]*dh)+raze Ldcprev[L]; 
+	tmp:lstmCt[L;t]; 
+	dC:((1-tmp*tmp)*lstmOg[L;t]*dh)+raze Ldcprev[L]; 
 
-	tmp:LSTMig[L;t]; 
-	dinput:(tmp*(1-tmp))*LSTMcupd[L;t]*dC; 
+	tmp:lstmIg[L;t]; 
+	dinput:(tmp*(1-tmp))*lstmCupd[L;t]*dC; 
 
-	tmp:LSTMfg[L;t]; 
-	dforget:(tmp*(1-tmp))*LSTMc[L;t-1]*dC; 
+	tmp:lstmFg[L;t]; 
+	dforget:(tmp*(1-tmp))*lstmC[L;t-1]*dC; 
 
-	tmp:LSTMog[L;t]; 
-	doutput:(tmp*(1-tmp))*LSTMct[L;t]*dh; 
+	tmp:lstmOg[L;t]; 
+	doutput:(tmp*(1-tmp))*lstmCt[L;t]*dh; 
 
-	tmp:LSTMcupd[L;t]; 
-	dupdate:(1-tmp*tmp)*LSTMig[L;t]*dC; 
+	tmp:lstmCupd[L;t]; 
+	dupdate:(1-tmp*tmp)*lstmIg[L;t]*dC; 
 
-	Ldcprev[L]::LSTMfg[L;t]*dC; 
+	Ldcprev[L]::lstmFg[L;t]*dC; 
 
 	Ldb[0;L]::Ldb[0;L]+dinput;
 	Ldb[1;L]::Ldb[1;L]+dforget;
 	Ldb[2;L]::Ldb[2;L]+doutput; 
 	Ldb[3;L]::Ldb[3;L]+dupdate; 
 
-	hin:LSTMh[L;t-1]; 
+	hin:lstmH[L;t-1]; 
 	Ldwx[0;L]::Ldwx[0;L]+(dinput*/:LSTMx[L;t]); 
 	Ldwx[1;L]::Ldwx[1;L]+(dforget*/:LSTMx[L;t]);
 	Ldwx[2;L]::Ldwx[2;L]+(doutput*/:LSTMx[L;t]); 
@@ -294,22 +352,22 @@ encoderfw:{[L;xt]FW:0;BW:1;
 
 	dh:tdh+raze Ldhprev[L]; 
 
-	tmp:LSTMct[L;t]; 
-	dC:((1-tmp*tmp)*LSTMog[L;t]*dh)+raze Ldcprev[L]; 
+	tmp:lstmCt[L;t]; 
+	dC:((1-tmp*tmp)*lstmOg[L;t]*dh)+raze Ldcprev[L]; 
 
-	tmp:LSTMig[L;t]; 
-	dinput:(tmp*(1-tmp))*LSTMcupd[L;t]*dC; 
+	tmp:lstmIg[L;t]; 
+	dinput:(tmp*(1-tmp))*lstmCupd[L;t]*dC; 
 
-	tmp:LSTMfg[L;t]; 
-	dforget:(tmp*(1-tmp))*LSTMc[L;t-1]*dC; 
+	tmp:lstmFg[L;t]; 
+	dforget:(tmp*(1-tmp))*lstmC[L;t-1]*dC; 
 
-	tmp:LSTMog[L;t]; 
-	doutput:(tmp*(1-tmp))*LSTMct[L;t]*dh; 
+	tmp:lstmOg[L;t]; 
+	doutput:(tmp*(1-tmp))*lstmCt[L;t]*dh; 
 
-	tmp:LSTMcupd[L;t]; 
-	dupdate:(1-tmp*tmp)*LSTMig[L;t]*dC; 
+	tmp:lstmCupd[L;t]; 
+	dupdate:(1-tmp*tmp)*lstmIg[L;t]*dC; 
 
-	Ldcprev[L]::LSTMfg[L;t]*dC; 
+	Ldcprev[L]::lstmFg[L;t]*dC; 
 
 	/Ldb::Ldb+((dinput;dforget;doutput;dupdate))
 	Ldb[0;L]::Ldb[0;L]+dinput;
@@ -317,14 +375,14 @@ encoderfw:{[L;xt]FW:0;BW:1;
 	Ldb[2;L]::Ldb[2;L]+doutput; 
 	Ldb[3;L]::Ldb[3;L]+dupdate; 
 
-	hin:LSTMh[L;t-1]; 
+	hin:lstmH[L;t-1]; 
 	/Ldwx::Ldwx+((dinput*/:LSTMx[L;t]);(dforget*/:LSTMx[L;t]);(doutput*/:LSTMx[L;t]);(dupdate*/:LSTMx[L;t]))
 	Ldwx[0;L]::Ldwx[0;L]+(dinput*/:LSTMx[L;t]); 
 	Ldwx[1;L]::Ldwx[1;L]+(dforget*/:LSTMx[L;t]);
 	Ldwx[2;L]::Ldwx[2;L]+(doutput*/:LSTMx[L;t]); 
 	Ldwx[3;L]::Ldwx[3;L]+(dupdate*/:LSTMx[L;t]);
 	
-	/Ldwh::Ldwh+((dinput*/:LSTMh[L;t]);(dforget*/:LSTMh[L;t]);(doutput*/:LSTMh[L;t]);(dupdate*/:LSTMh[L;t]))
+	/Ldwh::Ldwh+((dinput*/:lstmH[L;t]);(dforget*/:lstmH[L;t]);(doutput*/:lstmH[L;t]);(dupdate*/:lstmH[L;t]))
 	Ldwh[0;L]::Ldwh[0;L]+(dinput*/:hin);
 	Ldwh[1;L]::Ldwh[1;L]+(dforget*/:hin);
 	Ldwh[2;L]::Ldwh[2;L]+(doutput*/:hin);
@@ -346,23 +404,6 @@ encoderfw:{[L;xt]FW:0;BW:1;
  }
 
 
-/ output forward - Embedding, LSTM, softmax
-ofw:{[oseq;t]L:1;
-	/show "OFProp";
-	h:embfw[L;oseq[t]];
-	h:LSTMfw[L;h];
-	h:softmaxfw[h];
-	$[t<(-1+count oseq);ofw[oseq;t+1];h]
- }
-
-softmaxfw:{[ix]smt::smt+1;
-	yy:smw$ix;
-	yy:exp(yy-max yy);
-	yy:yy%sum yy;
-	$[0=count smpreds;smpreds::(1,isz)#yy;smpreds::(smpreds, enlist yy)];
-	$[0=count smx;smx::(1,hsz)#ix;smx::(smx, enlist ix)];
-	yy
- }
 
 
 
@@ -417,25 +458,25 @@ initLayer:{[L]
 	LSTMt[FW]::0;
 	LSTMt[BW]::nRows; / size of input dataset
 	LSTMx[L]::"0";
-	LSTMh[L]::(1,hsz)#0;
-	LSTMc[L]::(1,hsz)#0;
-	LSTMct[L]::"0";
+	lstmH[L]::(1,hsz)#0;
+	lstmC[L]::(1,hsz)#0;
+	lstmCt[L]::"0";
 
-	LSTMig[L]::"0"; 
-	LSTMfg[L]::"0";
-	LSTMog[L]::"0";
-	LSTMcupd[L]::"0";
+	lstmIg[L]::"0"; 
+	lstmFg[L]::"0";
+	lstmOg[L]::"0";
+	lstmCupd[L]::"0";
 
 	Ldhprev[L]::(1,hsz)#0;
 	Ldcprev[L]::(1,hsz)#0;
 	FW:0;
 	BW:1;
 
-	/ important note - the LSTMh list for the backward LSTM grows in reverse - but is numbered normally, i.e 0,1,2,3...
+	/ important note - the lstmH list for the backward LSTM grows in reverse - but is numbered normally, i.e 0,1,2,3...
 	/  It should be read as follows - 0 - last entry, 1, second last, 2, third last and so on...
 	/ same goes for the Ldhprev and Ldcprev lists too.
 
-	/if[L=BW;LSTMh[L;0]::LSTMh[FW;LSTMt[FW]];LSTMc[L;0]::LSTMc[FW;LSTMt[FW]]];
+	/if[L=BW;lstmH[L;0]::lstmH[FW;LSTMt[FW]];lstmC[L;0]::lstmC[FW;LSTMt[FW]]];
 	/if[L=FW;Ldhprev[L]::Ldhprev[BW];Ldcprev[L]::Ldcprev[BW]];
 
 	Ldb[;L;]::0.0;
