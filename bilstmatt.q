@@ -87,16 +87,16 @@ encoderfw:{[fwxt;bwxt] FW:0;BW:1;
 	show "Inside encoder fw";
 	L:FW; LSTMt[L]::LSTMt[L]+1; t:LSTMt[L]; ac::ac+1; h:"f"$lstmH[L;t-1];
 
-	k:(1%1+exp(-1*((Lwh[0;L]$h)+(Lwx[0;L]$fwxt)+Lb[0;L])));
+	k:(1%1+exp(-1*((Lwh[0;L]$h)+(Lwx[0;L]$flip fwxt)+Lb[0;L])));
 	lstmIg[L]::(lstmIg[L], enlist k);
 
-	k:(1%1+exp(-1*((Lwh[1;L]$h)+(Lwx[1;L]$fwxt)+Lb[1;L])));
+	k:(1%1+exp(-1*((Lwh[1;L]$h)+(Lwx[1;L]$flip fwxt)+Lb[1;L])));
 	lstmFg[L]::(lstmFg[L], enlist k);
 
-	k:(1%1+exp(-1*((Lwh[2;L]$h)+(Lwx[2;L]$fwxt)+Lb[2;L])));
+	k:(1%1+exp(-1*((Lwh[2;L]$h)+(Lwx[2;L]$flip fwxt)+Lb[2;L])));
 	lstmOg[L]::(lstmOg[L], enlist k);
 
-	tmp:(Lwh[3;L]$h)+(Lwx[3;L]$fwxt)+Lb[3;L];
+	tmp:(Lwh[3;L]$h)+(Lwx[3;L]$flip fwxt)+Lb[3;L];
 	k:((exp(tmp)-exp(-1*tmp)))%((exp(tmp)+exp(-1*tmp)));
 	lstmCupd[L]::(lstmCupd[L], enlist k);
 
@@ -112,35 +112,35 @@ encoderfw:{[fwxt;bwxt] FW:0;BW:1;
 	LSTMx[L]::(LSTMx[L], enlist fwxt);
 	show "Adding to annotation";
 	$[0=count fwannot;
-		fwannot::lstmH[L;ac];
-		fwannot::fwannot,enlist(lstmH[L;ac])
+		fwannot::flip lstmH[L;ac];
+		fwannot::fwannot,flip enlist(lstmH[L;ac])
 		];
 
 / reverse
-	L:BW; LSTMt[L]::LSTMt[L]-1; t:LSTMt[L]; h:"f"$lstmH[L;t+1];
+	L:BW; LSTMt[L]::LSTMt[L]+1; t:LSTMt[L]; h:"f"$lstmH[L;t-1];
 
-	k:(1%1+exp(-1*((Lwh[0;L]$h)+(Lwx[0;L]$bwxt)+Lb[0;L])));
+	k:(1%1+exp(-1*((Lwh[0;L]$h)+(Lwx[0;L]$flip bwxt)+Lb[0;L])));
 	lstmIg[L]::(lstmIg[L], enlist k);
 
-	k:(1%1+exp(-1*((Lwh[1;L]$h)+(Lwx[1;L]$bwxt)+Lb[1;L])));
+	k:(1%1+exp(-1*((Lwh[1;L]$h)+(Lwx[1;L]$flip bwxt)+Lb[1;L])));
 	lstmFg[L]::(lstmFg[L], enlist k);
 
-	k:(1%1+exp(-1*((Lwh[2;L]$h)+(Lwx[2;L]$bwxt)+Lb[2;L])));
+	k:(1%1+exp(-1*((Lwh[2;L]$h)+(Lwx[2;L]$flip bwxt)+Lb[2;L])));
 	lstmOg[L]::(lstmOg[L], enlist k);
-
-	tmp:(Lwh[3;L]$h)+(Lwx[3;L]$bwxt)+Lb[3;L];
+	show "0";
+	tmp:(Lwh[3;L]$h)+(Lwx[3;L]$flip bwxt)+Lb[3;L];
 	k:((exp(tmp)-exp(-1*tmp)))%((exp(tmp)+exp(-1*tmp)));
 	lstmCupd[L]::(lstmCupd[L], enlist k);	
-
-	tmp:(raze lstmIg[L;t]*lstmCupd[L;t])+(raze lstmFg[L;t])*lstmC[L;t+1];
+ 	show "1";
+	tmp:(raze lstmIg[L;t]*lstmCupd[L;t])+(raze lstmFg[L;t])*lstmC[L;t-1];
 	lstmC[L]::(lstmC[L], enlist tmp);
-
+	show "2";
 	tmp:((exp(tmp)-exp(-1*tmp)))%((exp(tmp)+exp(-1*tmp)));
 	lstmCt[L]::(lstmCt[L], enlist tmp);
-
+	show "3";
 	tmp:lstmOg[L;t]*lstmCt[L;t];
 	lstmH[L]::(lstmH[L], enlist tmp);
-
+	show "4";
 	LSTMx[L]::(LSTMx[L], enlist bwxt);
 
 	show "adding to annot again";
@@ -235,17 +235,17 @@ softmaxfw:{[ix] smt::smt+1;
 	$[0=count smx;smx::(1,hsz)#ix;smx::(smx, enlist ix)];
 	:yy};
 
-embFW:{[L;i]
-	$[0=count embx[L;0];embx[L;0]::enlist i;embx[L]::(embx[L], enlist i)];
+embFW:{[L;ifw;ibw]
+	$[0=count embx[L;0];embx[L;0]::enlist ifw;embx[L]::(embx[L], enlist ifw)];
 	et[L]::et[L]+1;
-	:embw[L;i]};
+	:enlist (enlist embw[L;ifw]);(enlist embw[L;ibw])};
 
-encoder:{[iseq] ENC:0;DEC:1;
+encoder:{[iseqfw;iseqbw] ENC:0;DEC:1;
 	show "Inside encoder";
-	show iseq;
-	h:embFW[ENC;iseq];
+	show iseqfw;
+	h:embFW[ENC;iseqfw;iseqbw];
 	show h;
-	h:encoderfw[h];
+	h:encoderfw[h[0];h[1]];
 	/ final annotation global
 	annot::fwannot,reverse bwannot};
 
@@ -295,8 +295,10 @@ train:{[dummy]L:0;
  	/** convert each  word to an index, so that the appropriate
  	/** weight is returned
 		iseqfw:sum (select c2 from v where t in/: v.c1)[`c2];
-		iseqbw:sum (select c2 from v where ((count gt)-t) in/: v.c1)[`c2];
-		
+		iseqbw:sum (select c2 from v where ((-1+count gt)-t) in/: v.c1)[`c2];
+		show iseqfw;
+		show iseqbw;
+		show "--------------";
 		encoder[iseqfw;iseqbw];
 		t+:1;
     	];
