@@ -277,7 +277,7 @@ train:{L:0;
  	/
  	/** convert each  word to an index, so that the appropriate
  	/** weight is returned
-		iseq:sum (select c2 from v where t in/: v.c1;)[`c2];
+		iseq:sum (select c2 from v where t in/: v.c1)[`c2];
 		
 		encoder[iseq];
 		t+:1;
@@ -292,7 +292,7 @@ train:{L:0;
  	/** convert each  word to an index, so that the appropriate
  	/** weight is returned
  	/** Send one word at a time to decoder
-		oseq:sum (select c2 from v where t in/: v.c1;)[`c2];
+		oseq:sum (select c2 from v where t in/: v.c1)[`c2];
 		decoder[oseq];t;
 		t+:1;
 	    ];
