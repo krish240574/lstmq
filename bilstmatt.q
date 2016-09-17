@@ -66,6 +66,9 @@ lstmOg:(3 1)#"0";
 lstmCupd:(3 1)#"0";
 Ldhprev:(3,1,hsz)#0;
 Ldcprev:(3,1,hsz)#0;
+/ forward and backward lstm annotation lists
+fwannot:();
+bwannot:();
 annot:();
 /**************************L*S*T*M******************************************/
 
@@ -79,20 +82,21 @@ smw:(2,isz,hsz)#sampler[master;1000]; /osz,hsz - 2 sets of weights, one from fw 
 smdw:(isz,hsz)#0; /osz,hsz
 
 ac:-1;
-encoderfw:{[L;xt] FW:0;BW:1;
+encoderfw:{[fwxt;bwxt] FW:0;BW:1;
 
+	show "Inside encoder fw";
 	L:FW; LSTMt[L]::LSTMt[L]+1; t:LSTMt[L]; ac::ac+1; h:"f"$lstmH[L;t-1];
 
-	k:(1%1+exp(-1*((Lwh[0;L]$h)+(Lwx[0;L]$xt)+Lb[0;L])));
+	k:(1%1+exp(-1*((Lwh[0;L]$h)+(Lwx[0;L]$fwxt)+Lb[0;L])));
 	lstmIg[L]::(lstmIg[L], enlist k);
 
-	k:(1%1+exp(-1*((Lwh[1;L]$h)+(Lwx[1;L]$xt)+Lb[1;L])));
+	k:(1%1+exp(-1*((Lwh[1;L]$h)+(Lwx[1;L]$fwxt)+Lb[1;L])));
 	lstmFg[L]::(lstmFg[L], enlist k);
 
-	k:(1%1+exp(-1*((Lwh[2;L]$h)+(Lwx[2;L]$xt)+Lb[2;L])));
+	k:(1%1+exp(-1*((Lwh[2;L]$h)+(Lwx[2;L]$fwxt)+Lb[2;L])));
 	lstmOg[L]::(lstmOg[L], enlist k);
 
-	tmp:(Lwh[3;L]$h)+(Lwx[3;L]$xt)+Lb[3;L];
+	tmp:(Lwh[3;L]$h)+(Lwx[3;L]$fwxt)+Lb[3;L];
 	k:((exp(tmp)-exp(-1*tmp)))%((exp(tmp)+exp(-1*tmp)));
 	lstmCupd[L]::(lstmCupd[L], enlist k);
 
@@ -105,26 +109,26 @@ encoderfw:{[L;xt] FW:0;BW:1;
 	tmp:lstmOg[L;t]*lstmCt[L;t];
 	lstmH[L]::(lstmH[L], enlist tmp);
 
-	LSTMx[L]::(LSTMx[L], enlist xt);
-
-	$[0=count annot;
-		annot[ac]::lstmH[L;ac];
-		annot[ac]::annot[ac],enlist(lstmH[L;ac])
+	LSTMx[L]::(LSTMx[L], enlist fwxt);
+	show "Adding to annotation";
+	$[0=count fwannot;
+		fwannot::lstmH[L;ac];
+		fwannot::fwannot,enlist(lstmH[L;ac])
 		];
 
 / reverse
 	L:BW; LSTMt[L]::LSTMt[L]-1; t:LSTMt[L]; h:"f"$lstmH[L;t+1];
 
-	k:(1%1+exp(-1*((Lwh[0;L]$h)+(Lwx[0;L]$xt)+Lb[0;L])));
+	k:(1%1+exp(-1*((Lwh[0;L]$h)+(Lwx[0;L]$bwxt)+Lb[0;L])));
 	lstmIg[L]::(lstmIg[L], enlist k);
 
-	k:(1%1+exp(-1*((Lwh[1;L]$h)+(Lwx[1;L]$xt)+Lb[1;L])));
+	k:(1%1+exp(-1*((Lwh[1;L]$h)+(Lwx[1;L]$bwxt)+Lb[1;L])));
 	lstmFg[L]::(lstmFg[L], enlist k);
 
-	k:(1%1+exp(-1*((Lwh[2;L]$h)+(Lwx[2;L]$xt)+Lb[2;L])));
+	k:(1%1+exp(-1*((Lwh[2;L]$h)+(Lwx[2;L]$bwxt)+Lb[2;L])));
 	lstmOg[L]::(lstmOg[L], enlist k);
 
-	tmp:(Lwh[3;L]$h)+(Lwx[3;L]$xt)+Lb[3;L];
+	tmp:(Lwh[3;L]$h)+(Lwx[3;L]$bwxt)+Lb[3;L];
 	k:((exp(tmp)-exp(-1*tmp)))%((exp(tmp)+exp(-1*tmp)));
 	lstmCupd[L]::(lstmCupd[L], enlist k);	
 
@@ -137,9 +141,17 @@ encoderfw:{[L;xt] FW:0;BW:1;
 	tmp:lstmOg[L;t]*lstmCt[L;t];
 	lstmH[L]::(lstmH[L], enlist tmp);
 
-	LSTMx[L]::(LSTMx[L], enlist xt);
+	LSTMx[L]::(LSTMx[L], enlist bwxt);
 
-	annot[ac]::annot[ac],enlist(lstmH[L;ac]);};
+	show "adding to annot again";
+	/ This list will need to be reversed before concatenation
+	/ with the fwannot
+	$[0=count bwannot;
+		bwannot::lstmH[L;ac];
+		bwannot::bwannot,enlist(lstmH[L;ac])
+		];
+	};
+
 
 	/ MLP 	
 mlpFw:{[decoderstate;pred]
@@ -229,8 +241,13 @@ embFW:{[L;i]
 	:embw[L;i]};
 
 encoder:{[iseq] ENC:0;DEC:1;
+	show "Inside encoder";
+	show iseq;
 	h:embFW[ENC;iseq];
-	h:encoderfw[h]};
+	show h;
+	h:encoderfw[h];
+	/ final annotation global
+	annot::fwannot,reverse bwannot};
 
 	/ https://indico.io/blog/wp-content/uploads/2016/04/figure1.jpeg
 decoder:{[oSeq;t] ENC:0;DEC:1;
@@ -263,7 +280,7 @@ decoder:{[oSeq;t] ENC:0;DEC:1;
 /**** train the whole shebang here
 /**** 
 cctr:0;v:0;
-train:{L:0;
+train:{[dummy]L:0;
 /*/ read from disk, assign numbers and feed to encoder
 /*/ one word at a time
 /*/
@@ -277,9 +294,10 @@ train:{L:0;
  	/
  	/** convert each  word to an index, so that the appropriate
  	/** weight is returned
-		iseq:sum (select c2 from v where t in/: v.c1)[`c2];
+		iseqfw:sum (select c2 from v where t in/: v.c1)[`c2];
+		iseqbw:sum (select c2 from v where ((count gt)-t) in/: v.c1)[`c2];
 		
-		encoder[iseq];
+		encoder[iseqfw;iseqbw];
 		t+:1;
     	];
 
@@ -305,7 +323,7 @@ train:{L:0;
  };
 
 
-
+train[0];
 
 
 
