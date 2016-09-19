@@ -70,7 +70,6 @@ Ldcprev:(3,1,hsz)#0;
 fwannot:();
 bwannot:();
 annot:();
-/**************************L*S*T*M******************************************/
 
 
 / Softmax variables
@@ -81,22 +80,23 @@ smt:0;
 smw:(2,isz,hsz)#sampler[master;1000]; /osz,hsz - 2 sets of weights, one from fw and bw lstm resp.
 smdw:(isz,hsz)#0; /osz,hsz
 
-ac:-1;
+ac:0;
 encoderfw:{[fwxt;bwxt] FW:0;BW:1;
 
 	show "Inside encoder fw";
+	show shape fwxt;
 	L:FW; LSTMt[L]::LSTMt[L]+1; t:LSTMt[L]; ac::ac+1; h:"f"$lstmH[L;t-1];
 
-	k:(1%1+exp(-1*((Lwh[0;L]$h)+(Lwx[0;L]$flip fwxt)+Lb[0;L])));
+	k:(1%1+exp(-1*((Lwh[0;L]$h)+(Lwx[0;L]$fwxt)+Lb[0;L])));
 	lstmIg[L]::(lstmIg[L], enlist k);
 
-	k:(1%1+exp(-1*((Lwh[1;L]$h)+(Lwx[1;L]$flip fwxt)+Lb[1;L])));
+	k:(1%1+exp(-1*((Lwh[1;L]$h)+(Lwx[1;L]$fwxt)+Lb[1;L])));
 	lstmFg[L]::(lstmFg[L], enlist k);
 
-	k:(1%1+exp(-1*((Lwh[2;L]$h)+(Lwx[2;L]$flip fwxt)+Lb[2;L])));
+	k:(1%1+exp(-1*((Lwh[2;L]$h)+(Lwx[2;L]$fwxt)+Lb[2;L])));
 	lstmOg[L]::(lstmOg[L], enlist k);
 
-	tmp:(Lwh[3;L]$h)+(Lwx[3;L]$flip fwxt)+Lb[3;L];
+	tmp:(Lwh[3;L]$h)+(Lwx[3;L]$fwxt)+Lb[3;L];
 	k:((exp(tmp)-exp(-1*tmp)))%((exp(tmp)+exp(-1*tmp)));
 	lstmCupd[L]::(lstmCupd[L], enlist k);
 
@@ -110,44 +110,44 @@ encoderfw:{[fwxt;bwxt] FW:0;BW:1;
 	lstmH[L]::(lstmH[L], enlist tmp);
 
 	LSTMx[L]::(LSTMx[L], enlist fwxt);
-	show "Adding to annotation";
 	$[0=count fwannot;
-		fwannot::flip lstmH[L;ac];
-		fwannot::fwannot,flip enlist(lstmH[L;ac])
+		fwannot::enlist lstmH[L;ac];
+		fwannot::fwannot, enlist(lstmH[L;ac])
 		];
+
 
 / reverse
 	L:BW; LSTMt[L]::LSTMt[L]+1; t:LSTMt[L]; h:"f"$lstmH[L;t-1];
 
-	k:(1%1+exp(-1*((Lwh[0;L]$h)+(Lwx[0;L]$flip bwxt)+Lb[0;L])));
+	k:(1%1+exp(-1*((Lwh[0;L]$h)+(Lwx[0;L]$bwxt)+Lb[0;L])));
 	lstmIg[L]::(lstmIg[L], enlist k);
 
-	k:(1%1+exp(-1*((Lwh[1;L]$h)+(Lwx[1;L]$flip bwxt)+Lb[1;L])));
+	k:(1%1+exp(-1*((Lwh[1;L]$h)+(Lwx[1;L]$bwxt)+Lb[1;L])));
 	lstmFg[L]::(lstmFg[L], enlist k);
 
-	k:(1%1+exp(-1*((Lwh[2;L]$h)+(Lwx[2;L]$flip bwxt)+Lb[2;L])));
+	k:(1%1+exp(-1*((Lwh[2;L]$h)+(Lwx[2;L]$bwxt)+Lb[2;L])));
 	lstmOg[L]::(lstmOg[L], enlist k);
-	show "0";
-	tmp:(Lwh[3;L]$h)+(Lwx[3;L]$flip bwxt)+Lb[3;L];
+	
+	tmp:(Lwh[3;L]$h)+(Lwx[3;L]$bwxt)+Lb[3;L];
 	k:((exp(tmp)-exp(-1*tmp)))%((exp(tmp)+exp(-1*tmp)));
 	lstmCupd[L]::(lstmCupd[L], enlist k);	
- 	show "1";
+ 	
 	tmp:(raze lstmIg[L;t]*lstmCupd[L;t])+(raze lstmFg[L;t])*lstmC[L;t-1];
 	lstmC[L]::(lstmC[L], enlist tmp);
-	show "2";
+	
 	tmp:((exp(tmp)-exp(-1*tmp)))%((exp(tmp)+exp(-1*tmp)));
 	lstmCt[L]::(lstmCt[L], enlist tmp);
-	show "3";
+	
 	tmp:lstmOg[L;t]*lstmCt[L;t];
 	lstmH[L]::(lstmH[L], enlist tmp);
-	show "4";
+	
 	LSTMx[L]::(LSTMx[L], enlist bwxt);
 
-	show "adding to annot again";
+	show "added to both annots";
 	/ This list will need to be reversed before concatenation
 	/ with the fwannot
 	$[0=count bwannot;
-		bwannot::lstmH[L;ac];
+		bwannot::enlist lstmH[L;ac];
 		bwannot::bwannot,enlist(lstmH[L;ac])
 		];
 	};
@@ -236,16 +236,27 @@ softmaxfw:{[ix] smt::smt+1;
 	:yy};
 
 embFW:{[L;ifw;ibw]
+	/ show "Inside embFW: ifw";
+	/ show ifw,ibw;
 	$[0=count embx[L;0];embx[L;0]::enlist ifw;embx[L]::(embx[L], enlist ifw)];
 	et[L]::et[L]+1;
-	:enlist (enlist embw[L;ifw]);(enlist embw[L;ibw])};
+	r:((enlist embw[L;ifw]);(enlist embw[L;ibw]));
+    / show "Returning r=";
+	/ show r;
+	/ show "______________________";
+	:r};
+
 
 encoder:{[iseqfw;iseqbw] ENC:0;DEC:1;
 	show "Inside encoder";
 	show iseqfw;
 	h:embFW[ENC;iseqfw;iseqbw];
-	show h;
-	h:encoderfw[h[0];h[1]];
+	show "Inside encoder, h[0] = ";
+	show shape h[0];
+	/ show "Inside encoder, h[1] = ";
+	/ show h[1];	
+	h:encoderfw[flip h[0];flip h[1]];
+	
 	/ final annotation global
 	annot::fwannot,reverse bwannot};
 
@@ -272,10 +283,6 @@ decoder:{[oSeq;t] ENC:0;DEC:1;
 	/ Softmax output
 	h:softmaxfw[h]};
 
-
-
- 
-
 /**** 
 /**** train the whole shebang here
 /**** 
@@ -284,9 +291,13 @@ train:{[dummy]L:0;
 /*/ read from disk, assign numbers and feed to encoder
 /*/ one word at a time
 /*/
-	txt:" " vs " " sv read0 `text.txt;t1:txt[0];t2:txt[1];
+	
+	txt:read0 `text.txt;
+	t1:group " " vs txt[0];
+	t2:group " " vs txt[1];
 
-	gt:group t1;
+	show t1;
+	gt: t1;
 	v::([]c1:value gt;c2:til count gt);
 	/Encoder
 	t:0;
@@ -295,27 +306,25 @@ train:{[dummy]L:0;
  	/** convert each  word to an index, so that the appropriate
  	/** weight is returned
 		iseqfw:sum (select c2 from v where t in/: v.c1)[`c2];
-		iseqbw:sum (select c2 from v where ((-1+count gt)-t) in/: v.c1)[`c2];
-		show iseqfw;
-		show iseqbw;
-		show "--------------";
+		iseqbw:sum (select c2 from v where ((-1+count gt)-t) in/: v.c1)[`c2];			
 		encoder[iseqfw;iseqbw];
+		show "*****Returned from encoder*****";
 		t+:1;
     	];
 
 	/Decoder
-	gt:group t2;
-	v::([]c1:value gt;c2:til count gt);
-	t:0;
-	while[t<count v;
- 	/
- 	/** convert each  word to an index, so that the appropriate
- 	/** weight is returned
- 	/** Send one word at a time to decoder
-		oseq:sum (select c2 from v where t in/: v.c1)[`c2];
-		decoder[oseq];t;
-		t+:1;
-	    ];
+	/ gt: t2;
+	/ v::([]c1:value gt;c2:til count gt);
+	/ t:0;
+	/ while[t<count v;
+ / 	/
+ / 	/** convert each  word to an index, so that the appropriate
+ / 	/** weight is returned
+ / 	/** Send one word at a time to decoder
+	/ 	oseq:sum (select c2 from v where t in/: v.c1)[`c2];
+	/ 	decoder[oseq];t;
+	/ 	t+:1;
+	/     ];
 	
 / gradnorm: sqrt((sum over Ldwx xexp 2)+(sum over Ldwh xexp 2) +(sum over embdw xexp 2)+(sum over smdw xexp 2));
 / if[gradnorm>clipgrad;normalizegrads(gradnorm%clipgrad)];
