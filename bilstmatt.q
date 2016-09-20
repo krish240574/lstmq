@@ -84,16 +84,20 @@ SMDW:(ISZ,HSZ)#0; /osz,HSZ
 /
 Call this function based on forward or backward LSTMs
 \
-AC:0;
+/ Annotation counters, forward and backward.
+FAC:0;
+BAC:0;
 LSTMFW:{[L;XT] FW:0;BW:1;DCDR:2;
 	LSTMT[L]::LSTMT[L]+1; 
 
 	if[L=FW;show "Inside encoder fw"];
 	if[L=BW;show "Inside encoder bw"];
-	if[L=DCDR;show "Inside decoder fw"];
+	if[L=DCDR;show "Inside DECODER fw"];
 
 	show shape XT;
-	t:LSTMT[L]; AC::AC+1; h:"f"$LSTMH[L;t-1];
+	if[L=FW;FAC+::1];
+	if[L=BW;BAC+::1];
+	t:LSTMT[L];  h:"f"$LSTMH[L;t-1];
 
 	k:(1%1+exp(-1*((LWH[0;L]$h)+(LWX[0;L]$XT)+LB[0;L])));
 	LSTMIG[L]::(LSTMIG[L], enlist k);
@@ -119,49 +123,51 @@ LSTMFW:{[L;XT] FW:0;BW:1;DCDR:2;
 
 	LSTMX[L]::(LSTMX[L], enlist XT);
 
+
 	if[L=FW;
 		$[0=count FWANNOT;
-			FWANNOT::enlist LSTMH[L;AC];
-			FWANNOT::FWANNOT, enlist(LSTMH[L;AC])
+			FWANNOT::enlist LSTMH[L;FAC];
+			FWANNOT::FWANNOT, enlist(LSTMH[L;FAC])
 			]
 	  ];
 
 	if[L=BW;
 		$[0=count BWANNOT;
-			BWANNOT::enlist LSTMH[L;AC];
-			BWANNOT::BWANNOT, enlist(LSTMH[L;AC])
+			BWANNOT::enlist LSTMH[L;BAC];
+			BWANNOT::BWANNOT, enlist(LSTMH[L;BAC])
 			]
 	 ];
 
 	if[L=DCDR;
-		:LSTMH[L;t]]
+		:LSTMH[L;t]
+	 ]
 
    };
 
 /
-MLP - for state si-1 of LSTM decoder and entire annotation vector, compute ALPHAS
+MLP - for state si-1 of LSTM DECODER and entire annotation vector, compute ALPHAS
 \
 
-MLPFW:{[DECODERSTATE]
+MLPFW:{[DECODERSTATE] SZMLPINPUTS:(count DECODERSTATE)+count ANNOT[0];
 
- 	MLPINPUTS:(DECODERSTATE,ANNOT[0]);
+
  	/if[PRED<>-1;MLINPUTS:MLINPUTS,PRED];
- 	SZMLPINPUTS:count(MLINPUTS)[0];
 
  	i:0;MLPIB:0.0;MLPHB:0.0;
  	/ Hidden to output weights
  	MLPWHO:(SZMLPINPUTS,1)#(SAMPLER[MASTER;1000]);
  	/ Input to hidden weights
- 	MLPWIH:(SZMLPINPUTS,SZMLPINPUTS)#(SAMPLER[MASTER;1000]);
+ 	MLPWIH:"f"$(SZMLPINPUTS,SZMLPINPUTS)#(SAMPLER[MASTER;1000]);
  	/ MLP output
  	MLPO:();
  	/ MLP hidden layer - init to 0
- 	MLPHID:(1,count MLPINPUTS[0])#0;
+ 	MLPHID:(1,SZMLPINPUTS)#0;
 
  	/ Feed the MLP with DECODERSTATE and each annotation
  	while[i<(count ANNOT);
-			MLPINPUTS:(DECODERSTATE,ANNOT[i]);
-    		MLPIX:(1,count MLPINPUTS[0])#MLPINPUTS;
+
+			/MLPINPUTS:DECODERSTATE,(ANNOT[i]);
+    		MLPIX:raze over "f"$(1,SZMLPINPUTS)#(DECODERSTATE,ANNOT[i]);
     
     		/Hidden layer calculation
 			TMP:MLPIB+MLPWIH$MLPIX; 
@@ -171,11 +177,12 @@ MLPFW:{[DECODERSTATE]
 			TMP:MLPHB+MLPHID$MLPWHO;
 			output:(1%(1+exp(-1*TMP)));
 	
-			$[0=count MLPO:MLPO:output;MLPO:MLPO,enlist output]
- 			i:i+1;
+			$[0=count MLPO;MLPO:output;MLPO:MLPO,enlist output]
+ 			i+:1
  			];
-		ALPHAS:(exp(MLPO)%sum exp(MLPO));
-		:ALPHAS};
+		ALPHAS:(exp(MLPO))%(sum exp(MLPO))[0];
+		:ALPHAS
+	};
 
 
 
@@ -209,10 +216,10 @@ Embedding forward pass
 \
 	H:EMBFW[ENC;ISEQFW;ISEQBW];
 
-	/ show "Inside encoder, h[0] = ";
-	/ show shape h[0];
-	/ show "Inside encoder, h[1] = ";
-	/ show h[1];	
+	show "Inside encoder, h[0] = ";
+	show H[0];
+	show "Inside encoder, h[1] = ";
+	show H[1];	
 
 /
 Encoder forward pass - BiLSTM
@@ -230,10 +237,10 @@ final ANNOTation gLObal
 
 
 / https://indico.io/blog/wp-content/uploads/2016/04/figure1.jpeg
-decoder:{[oSeq;t] ENC:0;DEC:1;
+DECODER:{[oSeq;t] ENC:0;DEC:1;DCDR:2;
 
 /
-	Initialize the decoder state with those of the encoder
+	Initialize the DECODER state with those of the encoder
 	Maybe this is not needed. Let them init to 0.
 
 	LSTMH[DCDR;0]:(LSTMH[FW;LSTMT[FW]],LSTMH[BW;LSTMT[BW]]); 
@@ -241,23 +248,36 @@ decoder:{[oSeq;t] ENC:0;DEC:1;
 \
 	
 /
-	GET si-1(previous state) from LSTM
+	Get si-1(previous state) from LSTM
 \
+
 	if[t=0;sPrev:LSTMH[DCDR;0];cPrev:LSTMC[DCDR;0];smp:-1]; 
 	if[t>0;sPrev:LSTMH[DCDR;t-1];cPrev:LSTMC[DCDR;t-1];smp:SMPREDS[t-1]];
 
 /
 	Attention mechanism, calculate ALPHAS
 \
+
 	ALPHAST:MLPFW[sPrev];
-	CTX:sum over ALPHAST*ANNOT;
+
+/
+	Compute context vector for this word t
+\
+	CTX:0;i:0;
+	while[i<count ANNOT;
+		CTX+:sum over ALPHAST*ANNOT[i];
+		i+:1];
+
+/
+	CTX is the state for DECODER
+\
+	LSTMH[DCDR;t]:CTX;
 
 	/ GET word embedding
 	h:EMBFW[DCDR;oSeq];
 
-	dinput:(h,CTX,smp);
 	/ Call LSTM fw
-	h:LSTMFW[DCDR;dinput];
+	h:LSTMFW[DCDR;h];
 	/ Softmax output
 	h:softmaxfw[h]};
 
@@ -290,7 +310,7 @@ train:{[dummy]L:0;
 		t+:1;
     	];
 
-	/Decoder
+	/DECODER
 	gt: t2;
 	v::([]c1:value gt;c2:til count gt);
 	t:0;
@@ -298,10 +318,10 @@ train:{[dummy]L:0;
 /
 Convert each word to an index, so that the appropriate
 weight is returned.
-Send one word at a time to decoder
+Send one word at a time to DECODER
 \
 		oseq:sum (select c2 from v where t in/: v.c1)[`c2];
-		decoder[oseq;t];
+		DECODER[oseq;t];
 		t+:1;
 	    ];
 	
@@ -429,7 +449,7 @@ train[0];
 /  };
 
 
-/  decoderbw:{
+/  DECODERbw:{
 
 /  	DCRD:2;
 /  	L:DCDR;
@@ -683,7 +703,7 @@ train[0];
 / 	};
 
 
-/ decoderFw:{[L;xt] FW:0;BW:1;
+/ DECODERFw:{[L;xt] FW:0;BW:1;
 
 / 	L:DCDR;
 
