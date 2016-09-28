@@ -20,7 +20,7 @@ SAMPLER:{[MASTER;C]while[C>count FLIST;
 EMBW:(2,ISZ,HSZ)#SAMPLER[MASTER;1000]; /2,vsz,ESZ
 EMBDW:(2,ISZ,HSZ)#0.0; /2,vsz,ESZ
 ET:(0;0); / time pointer in embedding
-EMBX:(2 1)#(); 
+EMBX:(3 1)#(); 
 
 ESZ:100; / ESZ = 120
 HSZ:100; / ESZ = 10 also. HSZ=150
@@ -78,7 +78,7 @@ SMT:0;
 /
 osz,HSZ - 2 sETs of weights, one from fw and bw lstm resp.
 \
-SMW:(2,ISZ,HSZ)#SAMPLER[MASTER;1000]; 
+SMW:(ISZ,HSZ)#SAMPLER[MASTER;1000]; 
 SMDW:(ISZ,HSZ)#0; /osz,HSZ
 
 /
@@ -157,38 +157,36 @@ MLPFW:{[DECODERSTATE] SZMLPINPUTS:(count DECODERSTATE)+count ANNOT[0];
  	/ Hidden to output weights
  	MLPWHO:(SZMLPINPUTS,1)#(SAMPLER[MASTER;1000]);
  	/ Input to hidden weights
- 	MLPWIH:"f"$(SZMLPINPUTS,SZMLPINPUTS)#(SAMPLER[MASTER;1000]);
+ 	MLPWIH:"f"$(HSZ,SZMLPINPUTS)#(SAMPLER[MASTER;1000]);
  	/ MLP output
  	MLPO:();
  	/ MLP hidden layer - init to 0
- 	MLPHID:(1,SZMLPINPUTS)#0;
+ 	MLPHID:(1,HSZ)#0;
 
  	/ Feed the MLP with DECODERSTATE and each annotation
  	while[i<(count ANNOT);
 
 			/MLPINPUTS:DECODERSTATE,(ANNOT[i]);
-    		MLPIX:raze over "f"$(1,SZMLPINPUTS)#(DECODERSTATE,ANNOT[i]);
+    		MLPIX:flip "f"$(1,SZMLPINPUTS)#(DECODERSTATE,raze ANNOT[i]);
     
     		/Hidden layer calculation
-			TMP:MLPIB+MLPWIH$MLPIX; 
-			MLPHID:(1%(1+exp(-1*TMP)));
-	
+			TMP:raze MLPIB+MLPWIH$MLPIX; 
+			MLPHID:(1,HSZ)#(1%(1+exp(-1*TMP)));
+			output:MLPHID; / for now
+			
 			/ Output layer calculation			
-			TMP:MLPHB+MLPHID$MLPWHO;
-			output:(1%(1+exp(-1*TMP)));
+			/TMP:MLPHB+MLPHID$MLPWHO;
+			/output:(1%(1+exp(-1*TMP)));
 	
-			$[0=count MLPO;MLPO:output;MLPO:MLPO,enlist output]
+			$[0=count MLPO;MLPO:(exp(output))%(sum raze exp(output));MLPO:MLPO,enlist output]
  			i+:1
  			];
-		ALPHAS:(exp(MLPO))%(sum exp(MLPO))[0];
-		:ALPHAS
+		/ALPHAS:raze (exp(MLPO))%(sum raze exp(MLPO));
+		:MLPO
 	};
 
-
-
-
 softmaxfw:{[IX] SMT::SMT+1;
-	YY:SMW$IX;
+	YY:raze SMW$IX;
 	YY:exp(YY-max YY);
 	YY:YY%sum YY;
 	$[0=count SMPREDS;SMPREDS::(1,ISZ)#YY;SMPREDS::(SMPREDS, enlist YY)];
@@ -198,12 +196,19 @@ softmaxfw:{[IX] SMT::SMT+1;
 EMBFW:{[L;IFW;IBW]
 	show "Inside EMBFW: IFW,IBW";
 	show IFW,IBW;
+	show "inside EMBFW, L = ";
+	show L;
 	$[0=count EMBX[L;0];EMBX[L;0]::enlist IFW;EMBX[L]::(EMBX[L], enlist IFW)];
 	ET[L]::ET[L]+1;
-	r:((enlist EMBW[L;IFW]);(enlist EMBW[L;IBW]));
-    /show "RETurning r=";
-	/show r;
-	/show "______________________";
+	r:();
+
+/
+    for decoder, use only IFW, only one LSTM
+\
+	$[L=1;r:enlist EMBW[L;IFW];r:((enlist EMBW[L;IFW]);(enlist EMBW[L;IBW]))]
+    show "RETurning r=";
+	show r;
+	show "______________________";
 	:r};
 
 
@@ -259,14 +264,15 @@ DECODER:{[oSeq;t] ENC:0;DEC:1;DCDR:2;
 \
 
 	ALPHAST:MLPFW[sPrev];
-
+	CTX:raze(1 100)#sum (shape ALPHAST)#(raze over ALPHAST)*(raze over ANNOT);
 /
 	Compute context vector for this word t
 \
-	CTX:0;i:0;
-	while[i<count ANNOT;
-		CTX+:sum over ALPHAST*ANNOT[i];
-		i+:1];
+	/ CTX:0;i:0;
+
+	/ while[i<count ANNOT;
+	/ 	CTX+:sum over ALPHAST[0]*raze flip ANNOT[i];
+	/ 	i+:1];
 
 /
 	CTX is the state for DECODER
@@ -274,10 +280,9 @@ DECODER:{[oSeq;t] ENC:0;DEC:1;DCDR:2;
 	LSTMH[DCDR;t]:CTX;
 
 	/ GET word embedding
-	h:EMBFW[DCDR;oSeq];
-
+	h:EMBFW[DCDR-1;oSeq;0];
 	/ Call LSTM fw
-	h:LSTMFW[DCDR;h];
+	h:LSTMFW[DCDR;flip h];
 	/ Softmax output
 	h:softmaxfw[h]};
 
