@@ -149,9 +149,6 @@ MLP - for state si-1 of LSTM DECODER and entire annotation vector, compute ALPHA
 
 MLPFW:{[DECODERSTATE] SZMLPINPUTS:(count DECODERSTATE)+count ANNOT[0];
 
-
- 	/if[PRED<>-1;MLINPUTS:MLINPUTS,PRED];
-
  	i:0;MLPIB:0.0;MLPHB:0.0;
  	/ Hidden to output weights
  	MLPWHO:(SZMLPINPUTS,1)#(SAMPLER[MASTER;1000]);
@@ -187,67 +184,35 @@ MLPFW:{[DECODERSTATE] SZMLPINPUTS:(count DECODERSTATE)+count ANNOT[0];
 SOFTMAXFW:{[IX] SMT::SMT+1;
 	YY:raze SMW$IX;
 	YY:exp(YY-max YY);
-	show "Inside SOFTMAXFW:, SMT:";
-	show SMT;
 	YY:YY%sum YY;
 	$[0=count SMPREDS;SMPREDS::(1,ISZ)#YY;SMPREDS::(SMPREDS, enlist YY)];
 	$[0=count SMX;SMX::(1,HSZ)#IX;SMX::(SMX, enlist IX)];
 	:YY};
 
-EMBFW:{[L;IFW;IBW]
-	show "Inside EMBFW:";
-	show "L:";
-	show L;
-
-	$[0=count EMBX[L;0];EMBX[L;0]::enlist IFW;EMBX[L]::(EMBX[L], enlist IFW)];
+EMBFW:{[L;IFW;IBW] $[0=count EMBX[L;0];EMBX[L;0]::enlist IFW;EMBX[L]::(EMBX[L], enlist IFW)];
 	ET[L]::ET[L]+1;
 	r:();
-
-/
-    for decoder, use only IFW, only one LSTM
-\
+	/for decoder, use only IFW, only one LSTM
 	$[L=1;r:enlist EMBW[L;IFW];r:((enlist EMBW[L;IFW]);(enlist EMBW[L;IBW]))];
-	show "Returning r:";
-	show r;
 	:r};
 
 
 ENCODERFW:{[ISEQFW;ISEQBW] ENC:0;DEC:1;
-	show "Inside ENCODER";
-	show ISEQFW;
-	show ISEQBW;
-	
-/
-Embedding forward pass
-\
+	/Embedding forward pass
 	H:EMBFW[ENC;ISEQFW;ISEQBW];
-
-/
-Encoder forward pass - BiLSTM
-\
+	
+	/Encoder forward pass - BiLSTM
 	FW:0;BW:1;
 	d:LSTMFW[FW;flip H[0]];
 	d:LSTMFW[BW;flip H[1]];
-	/H:ENCODERFW[flip h[0];flip h[1]];
 	
-/
-final ANNOTation gLObal
-\
+	/final ANNOTation gLObal
 	ANNOT::FWANNOT,reverse BWANNOT
  };
 
 
 / https://indico.io/blog/wp-content/uploads/2016/04/figure1.jpeg
 DECODERFW:{[OSEQ;T] ENC:0;DEC:1;DCDR:2;
-
-/
-	Initialize the DECODER state with those of the ENCODER
-	Maybe this is not needed. Let them init to 0.
-
-	LSTMH[DCDR;0]:(LSTMH[FW;LSTMT[FW]],LSTMH[BW;LSTMT[BW]]); 
-	LSTMC[DCDR;0]:(LSTMC[FW;LSTMT[FW]],LSTMC[BW;LSTMT[BW]]); 
-\
-	
 /
 	Get si-1(previous state) from LSTM
 \
@@ -343,11 +308,24 @@ DECODERFW:{[OSEQ;T] ENC:0;DEC:1;DCDR:2;
  }
 
 /
+		Softmaxbw
+		LSTMBW
+		EMBBW
+		MLPBW
+\
+ DECODERBW:{[OSEQ]
+ 	DH: raze SOFTMAXBW[OSEQ];
+ 	DCDR:2;
+	DH:LSTMBW[DCDR;DH];
+	/kumar;
+	DH:EMBBW[(DCDR-1);DH] 
+	/MLPBW[] U G H
+ 	};
+
+/
 softmax backward pass
 \
-SOFTMAXBW:{[i] show "Inside SOFTMAXBW, SMT:";
-	show SMT;
-	SMT::SMT-1;
+SOFTMAXBW:{[i] SMT::SMT-1;
 	$[0=count SMTARGETS;SMTARGETS::i;SMTARGETS::(SMTARGETS, enlist i)];
 	TMPx:raze over ((HSZ,1)#SMX[SMT]);
 	TMPd:raze over ((1,ISZ)#SMPREDS[SMT]);
@@ -359,15 +337,21 @@ SOFTMAXBW:{[i] show "Inside SOFTMAXBW, SMT:";
 
  EMBBW:{[L;DELTA] ET[L]::ET[L]-1;TX:raze EMBX[L];TX:TX[ET[L]];EMBDW[L;TX]::EMBDW[L;TX]+DELTA};
 
- ENCODERBW:{[L;ISEQ] show "------Inside encoder BW-----";H:LSTMBW[L;raze (1,HSZ)#0.0];
+ ENCODERBW:{[L;ISEQ] H:LSTMBW[L;raze (1,HSZ)#0.0];
 	H:EMBBW[L;H];
  }
 
+NORMALIZEGRADS:{[n]LDWX::LDWX%n;LDWH::LDWH%n;EMBDW::EMBDW%n;SMDW::SMDW%n};
+TAKESTEP:{[LR]LWX::LWX-LR*LDWX;LWH::LWH-LR*LDWH;LB::LB-LR*LDB;EMBW::EMBW-LR*EMBDW;SMW::SMW-LR*SMDW};
 
-/**** 
-/**** TRAIN the whole shebang here
-/**** 
-cctr:0;v:0;
+/ Get cost for this training run
+GETCOST:{[CTR] T:-1*sum(SMTARGETS[CTR]*log(SMPREDS[CTR]));:T};
+
+
+/ 
+/ TRAIN the whole shebang here
+/ 
+CCTR:0;
 TRAIN:{[dummy]L:0;
 /*/ read from disk, assign numbers and feed to ENCODER
 /*/ one word at a time
@@ -378,25 +362,21 @@ TRAIN:{[dummy]L:0;
 	T2:group " " vs TXT[1];
 
 	show T1;
+	show T2;
 	GT: T1;
 	V:([]C1:value GT;C2:til count GT);
 	/Encoder
 	T:0;
 	while[T<count V;
  	/
- 	/** convert eACh  word to an index, so that the appropriate
+ 	/** convert each  word to an index, so that the appropriate
  	/** weight is rETurned
 		ISEQFW:sum (select C2 from V where T in/: V[`C1])[`C2];
 		ISEQBW:sum (select C2 from V where ((-1+count GT)-T) in/: V[`C1])[`C2];
 		ENCODERFW[ISEQFW;ISEQBW];
-		show "*****Returned from ENCODER*****";
+		/show "*****Returned from ENCODER*****";
 		T+:1;
     	];
-
-    show "SHAPE OF LSTMX = ";
-    show shape LSTMX;
-    show shape 
-
 
 	/DECODER
 	GT: T2;
@@ -429,7 +409,6 @@ Now to begin the backward pass
 		T+:1;
 		];
 
-	show "Calling encoder BW";
 	GT:T1;
 	L:0;
 	V:([]C1:value GT;C2:til count GT);
@@ -439,43 +418,17 @@ Now to begin the backward pass
 		ENCODERBW[L;ISEQ];
 		T+:1;
 		];
-  }
 
-/
-		Softmaxbw
-		LSTMBW
-		EMBBW
-		MLPBW
-\
- DECODERBW:{[OSEQ]
- 	DH: raze SOFTMAXBW[OSEQ];
- 	show "Inside DECODERBW, SOFTMAXBW returned DH:";
- 	show DH;
- 	/kumar;
- 	DCDR:2;
-	DH:LSTMBW[DCDR;DH];
-	/kumar;
-	DH:EMBBW[(DCDR-1);DH] 
-	/MLPBW[] U G H
-	show "----------------Finished decoder BW pass-------------------------";
- 	};
-
-/
-	LSTMBW
-	EMBBW
-\
-
-
- / gradnorm: sqrt((sum over LDWX xexp 2)+(sum over LDWH xexp 2) +(sum over EMBDW xexp 2)+(sum over SMDW xexp 2));
-/ if[gradnorm>clipgrad;normalizegrads(gradnorm%clipgrad)];
-/ takestep[lr];
-/ cctr::cctr+1;
-/ :gETCost[cctr]
-
+GRADNORM: sqrt((sum over LDWX xexp 2)+(sum over LDWH xexp 2) +(sum over EMBDW xexp 2)+(sum over SMDW xexp 2));
+if[GRADNORM>CLIPGRAD;NORMALIZEGRADS(GRADNORM%CLIPGRAD)];
+TAKESTEP[LR];
+CCTR+::1;
+:GETCOST[CCTR]
+  } / end train
 
 TRAIN[0];
 
-
+/=============================================================================================
 
 
 
@@ -663,13 +616,13 @@ TRAIN[0];
 / embbw:{[L;delta]ET[L]::ET[L]-1;	tx:raze EMBX[L];Tx:tx[ET[L]];EMBDW[L;Tx]::EMBDW[L;Tx]+delta}
 
 
-/ clipgrad:5.0;
-/ lr:0.00001;
-/ normalizegrads:{[n]LDWX::LDWX%n;LDWH::LDWH%n;EMBDW::EMBDW%n;SMDW::SMDW%n};
-/ takestep:{[lr]LWX::LWX-lr*LDWX;LWH::LWH-lr*LDWH;LB::LB-lr*LDB;EMBW::EMBW-lr*EMBDW;SMW::SMW-lr*SMDW};
+/ CLIPGRAD:5.0;
+/ LR:0.00001;
+/ NORMALIZEGRADS:{[n]LDWX::LDWX%n;LDWH::LDWH%n;EMBDW::EMBDW%n;SMDW::SMDW%n};
+/ TAKESTEP:{[LR]LWX::LWX-LR*LDWX;LWH::LWH-LR*LDWH;LB::LB-LR*LDB;EMBW::EMBW-LR*EMBDW;SMW::SMW-LR*SMDW};
 
 / / GET cost for this TRAINing run
-/ gETCost:{[ctr]
+/ GETCOST:{[ctr]
 / 	/sum {-1*LOg((SMPREDS[x])[SMTARGETS[x]])}eACh til count SMTARGETS};
 
 / 	t:-1*sum(SMTARGETS[ctr]*LOg(SMPREDS[ctr]));
@@ -718,7 +671,7 @@ TRAIN[0];
 / applyoutputmodel:{[PREDiction;Token]
 / 	TMP:token;
 / 	TMP:ofw[(enlist TMP);0];
-/ 	token:sum where TMP = (max TMP);
+/ 	token:sum where TMP = (max TMP);	
 / 	if[(token<>EOS) and (maxl > count PREDiction);
 / 		$[0=count PREDiction;
 / 			PREDiction:token;
@@ -737,7 +690,6 @@ TRAIN[0];
 / 	IFW[ISEQ;0];
 / 	L:1;
 / 	initLayer[L];
-/ 	PREDiction:();
 / 	PREDiction:applyoutputmodel[PREDiction;0];
 / 	:PREDiction
 /  }
