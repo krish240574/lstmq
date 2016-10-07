@@ -91,7 +91,7 @@ LSTMFW:{[L;XT] FW:0;BW:1;DCDR:2;
 	LSTMT[L]::LSTMT[L]+1; 
 
 	if[L=FW;show "LSTMFW - Inside ENCODER fw"];
-	if[L=BW;show "LSTMFW - Inside ENCODER bw"];
+	if[L=BW;show "LSTMFW - Inside ENCODER fw"];
 	if[L=DCDR;show "LSTMFW - Inside DECODER fw"];
 
 	if[L=FW;FAC+::1];
@@ -245,12 +245,17 @@ DECODERFW:{[OSEQ;T] ENC:0;DEC:1;DCDR:2;
 	/ Call LSTM fw
 	H:LSTMFW[DCDR;flip H];
 	/ Softmax output
-	H:SOFTMAXFW[H]};
+	H:SOFTMAXFW[H]
+	};
 
 /
 	LSTM backward pass
 \
- LSTMBW:{[L;DH]	T:LSTMT[L];
+ LSTMBW:{[L;DH]	T:LSTMT[L];FW:0;BW:1;DCDR:2;
+
+ 	if[L=FW;show "LSTMBW - Inside ENCODER bw"];
+	if[L=BW;show "LSTMBW - Inside ENCODER bw"];
+	if[L=DCDR;show "LSTMBW - Inside DECODER bw"];
 
 	DH:DH+raze LDHPREV[L]; 
 
@@ -305,7 +310,7 @@ DECODERFW:{[OSEQ;T] ENC:0;DEC:1;DCDR:2;
 	dX:dX+(flip LWX[3;L])$DUPDATE;
 	LSTMT[L]::LSTMT[L]-1;
 	:dX
- }
+ };
 
 /
 		Softmaxbw
@@ -317,7 +322,6 @@ DECODERFW:{[OSEQ;T] ENC:0;DEC:1;DCDR:2;
  	DH: raze SOFTMAXBW[OSEQ];
  	DCDR:2;
 	DH:LSTMBW[DCDR;DH];
-	/kumar;
 	DH:EMBBW[(DCDR-1);DH] 
 	/MLPBW[] U G H
  	};
@@ -339,76 +343,77 @@ SOFTMAXBW:{[i] SMT::SMT-1;
 
  ENCODERBW:{[L;ISEQ] H:LSTMBW[L;raze (1,HSZ)#0.0];
 	H:EMBBW[L;H];
- }
+ };
 
 NORMALIZEGRADS:{[n]LDWX::LDWX%n;LDWH::LDWH%n;EMBDW::EMBDW%n;SMDW::SMDW%n};
 TAKESTEP:{[LR]LWX::LWX-LR*LDWX;LWH::LWH-LR*LDWH;LB::LB-LR*LDB;EMBW::EMBW-LR*EMBDW;SMW::SMW-LR*SMDW};
 
 / Get cost for this training run
-GETCOST:{[CTR] T:-1*sum(SMTARGETS[CTR]*log(SMPREDS[CTR]));:T};
+GETCOST:{[CTR] T:neg sum(SMTARGETS[CTR]*log(SMPREDS[CTR]));:T};
 
+/ TRAIN the whole shebang here 
 
-/ 
-/ TRAIN the whole shebang here
-/ 
 CCTR:0;
-TRAIN:{[dummy]L:0;
-/*/ read from disk, assign numbers and feed to ENCODER
-/*/ one word at a time
-/*/
-	
-	TXT:read0 `text.TXT;
-	T1:group " " vs TXT[0];
-	T2:group " " vs TXT[1];
-
+TRAIN:{[T1;T2] L:0;
+	CLIPGRAD:5.0;
+	LR:0.00001;
 	show T1;
 	show T2;
-	GT: T1;
+/========================================
+/	Forward pass
+/========================================
+	GT:T1;
 	V:([]C1:value GT;C2:til count GT);
-	/Encoder
+	/=======================
+	/	Encoder
+	/=======================
 	T:0;
 	while[T<count V;
- 	/
- 	/** convert each  word to an index, so that the appropriate
- 	/** weight is rETurned
+/
+	convert each  word to an index, so that the appropriate
+	weight is returned from embedding layer
+\
 		ISEQFW:sum (select C2 from V where T in/: V[`C1])[`C2];
 		ISEQBW:sum (select C2 from V where ((-1+count GT)-T) in/: V[`C1])[`C2];
 		ENCODERFW[ISEQFW;ISEQBW];
-		/show "*****Returned from ENCODER*****";
 		T+:1;
     	];
-
-	/DECODER
-	GT: T2;
+	/=======================
+	/	decoder
+	/=======================
+	GT:T2;
 	V:([]C1:value GT;C2:til count GT);
 	T:0;
 /
-Convert each word to an index, so that the appropriate
-weight is returned.
-Send one word at a time to DECODER
+	Convert each word to an index, so that the appropriate
+	weight is returned from embedding layer
+	Send one word at a time to DECODER
 \
     while[T<count V;
-	OSEQ:sum (select C2 from V where T in/: V[`C1])[`C2];
+		OSEQ:sum (select C2 from V where T in/: V[`C1])[`C2];
 		DECODERFW[OSEQ;T];
 		T+:1;
 	    ];
-	
-
-/
-Now to begin the backward pass
-\
+/========================================
+/	Backward pass
+/========================================
+	/=======================
+	/	decoder
+	/=======================
 	/ v is the same as above
-	/ so is GT, only reversed
+	/ so is GT, only reversed(Alex Graves et al.)
 	GT:T2;
 	GT:reverse GT;
 	V:([]C1:value GT;C2:til count GT);
 	T:0;
-	while[T<count v;
+	while[T<count V;
 		OSEQ:sum (select C2 from V where T in/: V[`C1])[`C2];
 		DECODERBW[OSEQ];
 		T+:1;
 		];
-
+	/=======================
+	/	encoder
+	/=======================
 	GT:T1;
 	L:0;
 	V:([]C1:value GT;C2:til count GT);
@@ -418,15 +423,94 @@ Now to begin the backward pass
 		ENCODERBW[L;ISEQ];
 		T+:1;
 		];
+	/============================
+	/ SGD with gradient clipping
+	/============================
+	GRADNORM: sqrt((sum over LDWX xexp 2)+(sum over LDWH xexp 2) +(sum over EMBDW xexp 2)+(sum over SMDW xexp 2));
+	if[GRADNORM>CLIPGRAD;NORMALIZEGRADS(GRADNORM%CLIPGRAD)];
+	TAKESTEP[LR];
+	CCTR+::1;
+	:GETCOST[CCTR]
+  };
 
-GRADNORM: sqrt((sum over LDWX xexp 2)+(sum over LDWH xexp 2) +(sum over EMBDW xexp 2)+(sum over SMDW xexp 2));
-if[GRADNORM>CLIPGRAD;NORMALIZEGRADS(GRADNORM%CLIPGRAD)];
-TAKESTEP[LR];
-CCTR+::1;
-:GETCOST[CCTR]
-  } / end train
 
-TRAIN[0];
+
+/ INITLAYER:{[L]
+/ 	EMBDW[L]::(ISZ,HSZ)#0.0; 
+/ 	ET[L]::0; 
+/ 	EMBX[L]::enlist (); 
+
+/ 	LSTMT[FW]::0;
+/ 	LSTMT[BW]::nRows; / size of input DATAsET
+/ 	LSTMX[L]::"0";
+/ 	LSTMH[L]::(1,HSZ)#0;
+/ 	LSTMC[L]::(1,HSZ)#0;
+/ 	LSTMCT[L]::"0";
+
+/ 	LSTMIG[L]::"0"; 
+/ 	LSTMFG[L]::"0";
+/ 	LSTMOG[L]::"0";
+/ 	LSTMCUPD[L]::"0";
+
+/ 	LDHPREV[L]::(1,HSZ)#0;
+/ 	LDCPREV[L]::(1,HSZ)#0;
+/ 	FW:0;
+/ 	BW:1;
+
+/ 	LDB[;L;]::0.0;
+/ 	LDWX[;L;;]::0.0;
+/ 	LDWH[;L;;]::0.0;
+
+/ 	if[L=BW;
+/ 		SMPREDS::();
+/ 		SMX::();
+/ 		SMTARGETS::();
+/ 		SMT::0;
+/ 		SMDW::(ISZ,HSZ)#0f]; /osz,HSZ
+/ 	};
+
+MAXL:10;
+APPLYOUTPUTMODEL:{[PREDICTION;TOKEN]
+	TMP:DECODERFW[(enlist TOKEN);0];
+	TOKEN:sum where TMP = (max TMP);	
+	if[(TOKEN<>EOS) and (MAXL > count PREDICTION);
+		$[0=count PREDICTION;
+			PREDICTION:TOKEN;
+			PREDICTION:(PREDICTION,enlist TOKEN)
+		 ];
+		APPLYOUTPUTMODEL[PREDICTION;TOKEN]
+	  ];
+	:PREDICTION
+	};
+
+
+/
+PREDICTIONS HERE
+Bubble input sequence through input layers
+Then send the output seq. to the output layers
+whilst using the h and c values from input layer LSTM
+as indicated in the paper
+\
+PREDICT:{[ISEQ]L:0;
+	INITLAYER[L];
+	IFW[ISEQ;0];
+	L:1;
+	INITLAYER[L];
+	PREDICTION:();
+	PREDICTION:APPLYOUTPUTMODEL[PREDICTION;0];
+	:PREDICTION
+ };
+
+MAINP:{[DUMMY] TXT:read0 `text.TXT;
+/
+read from disk, assign numbers and train
+one word at a time
+\
+	T1:group " " vs TXT[0];
+	T2:group " " vs TXT[1];
+	TRAIN[T1;T2];
+ };
+MAINP[0];
 
 /=============================================================================================
 
@@ -616,8 +700,7 @@ TRAIN[0];
 / embbw:{[L;delta]ET[L]::ET[L]-1;	tx:raze EMBX[L];Tx:tx[ET[L]];EMBDW[L;Tx]::EMBDW[L;Tx]+delta}
 
 
-/ CLIPGRAD:5.0;
-/ LR:0.00001;
+
 / NORMALIZEGRADS:{[n]LDWX::LDWX%n;LDWH::LDWH%n;EMBDW::EMBDW%n;SMDW::SMDW%n};
 / TAKESTEP:{[LR]LWX::LWX-LR*LDWX;LWH::LWH-LR*LDWH;LB::LB-LR*LDB;EMBW::EMBW-LR*EMBDW;SMW::SMW-LR*SMDW};
 
@@ -629,7 +712,7 @@ TRAIN[0];
 / 	:t
 /         }
 
-/ initLayer:{[L]
+/ INITLAYER:{[L]
 / 	EMBDW[L]::(ISZ,HSZ)#0.0; 
 / 	ET[L]::0; 
 / 	EMBX[L]::enlist (); 
@@ -667,31 +750,31 @@ TRAIN[0];
 / 	}
 
 / EOS:0;
-/ maxl:10;
-/ applyoutputmodel:{[PREDiction;Token]
-/ 	TMP:token;
+/ MAXL:10;
+/ APPLYOUTPUTMODEL:{[PREDICTION;TOKEN]
+/ 	TMP:TOKEN;
 / 	TMP:ofw[(enlist TMP);0];
-/ 	token:sum where TMP = (max TMP);	
-/ 	if[(token<>EOS) and (maxl > count PREDiction);
-/ 		$[0=count PREDiction;
-/ 			PREDiction:token;
-/ 			PREDiction:(PREDiction,enlist token)
+/ 	TOKEN:sum where TMP = (max TMP);	
+/ 	if[(TOKEN<>EOS) and (MAXL > count PREDICTION);
+/ 		$[0=count PREDICTION;
+/ 			PREDICTION:TOKEN;
+/ 			PREDICTION:(PREDICTION,enlist TOKEN)
 / 		 ];
-/ 		applyoutputmodel[PREDiction;Token]
+/ 		APPLYOUTPUTMODEL[PREDICTION;TOKEN]
 / 	  ];
-/ 	:PREDiction
+/ 	:PREDICTION
 / 	}
 / / Bubble input sequence through input layers
 / 	/ Then send the output seq. to the output layers
 / 	/ whilst using the h and c values from input layer LSTM
 / 	/ as indicated in the paper
-/ PREDict:{[ISEQ]L:0;
-/ 	initLayer[L];
+/ PREDICT:{[ISEQ]L:0;
+/ 	INITLAYER[L];
 / 	IFW[ISEQ;0];
 / 	L:1;
-/ 	initLayer[L];
-/ 	PREDiction:applyoutputmodel[PREDiction;0];
-/ 	:PREDiction
+/ 	INITLAYER[L];
+/ 	PREDICTION:APPLYOUTPUTMODEL[PREDICTION;0];
+/ 	:PREDICTION
 /  }
 
 
@@ -711,12 +794,12 @@ TRAIN[0];
 / 		show counter;
 / 		show "TRAINing cost:";
 / 		show cost%2;	
-/ 		show "PREDicting for [2,1] -> ";
-/ 		show PREDict[(2;1)];
-/ 		show "PREDicting for [1] -> ";
-/ 		show PREDict[enlist (1)];
-/ 		/ show "PREDicting for [3,1] -> ";
-/ 		/ show PREDict[(3;1)];
+/ 		show "PREDICTing for [2,1] -> ";
+/ 		show PREDICT[(2;1)];
+/ 		show "PREDICTing for [1] -> ";
+/ 		show PREDICT[enlist (1)];
+/ 		/ show "PREDICTing for [3,1] -> ";
+/ 		/ show PREDICT[(3;1)];
 / 		show "---------------";];
 / 		counter:counter+1;]
 / 		 }
