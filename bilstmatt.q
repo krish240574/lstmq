@@ -98,6 +98,8 @@ LSTMFW:{[L;XT] FW:0;BW:1;DCDR:2;
 	if[L=BW;BAC+::1];
 	T:LSTMT[L];  H:"f"$LSTMH[L;T-1];
 
+	show "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^";
+	/show LWH[0;L];
 	k:(1%1+exp(-1*((LWH[0;L]$H)+(LWX[0;L]$XT)+LB[0;L])));
 	LSTMIG[L]::(LSTMIG[L], enlist k);
 
@@ -203,8 +205,8 @@ ENCODERFW:{[ISEQFW;ISEQBW] ENC:0;DEC:1;
 	
 	/Encoder forward pass - BiLSTM
 	FW:0;BW:1;
-	d:LSTMFW[FW;flip H[0]];
-	d:LSTMFW[BW;flip H[1]];
+	d:LSTMFW[FW;raze over flip H[0]];
+	d:LSTMFW[BW;raze over flip H[1]];
 	
 	/final ANNOTation gLObal
 	ANNOT::FWANNOT,reverse BWANNOT
@@ -214,7 +216,7 @@ ENCODERFW:{[ISEQFW;ISEQBW] ENC:0;DEC:1;
 / https://indico.io/blog/wp-content/uploads/2016/04/figure1.jpeg
 DECODERFW:{[OSEQ;T] ENC:0;DEC:1;DCDR:2;
 /
-	Get si-1(previous state) from LSTM
+	Get si-1(previous state) from LSTM - NEED TO CHANGE THIS - PAPER REFER MAADI
 \
 
 	if[T=0;sPrev:LSTMH[DCDR;0];cPrev:LSTMC[DCDR;0];smp:-1]; 
@@ -243,6 +245,9 @@ DECODERFW:{[OSEQ;T] ENC:0;DEC:1;DCDR:2;
 	/ GET word embedding
 	H:EMBFW[DCDR-1;OSEQ;0];
 	/ Call LSTM fw
+	show "Inside DECODERFW, EMBFW returned H:";
+	show H;
+	show shape H;
 	H:LSTMFW[DCDR;flip H];
 	/ Softmax output
 	H:SOFTMAXFW[H]
@@ -252,6 +257,7 @@ DECODERFW:{[OSEQ;T] ENC:0;DEC:1;DCDR:2;
 	LSTM backward pass
 \
  LSTMBW:{[L;DH]	T:LSTMT[L];FW:0;BW:1;DCDR:2;
+
 
  	if[L=FW;show "LSTMBW - Inside ENCODER bw"];
 	if[L=BW;show "LSTMBW - Inside ENCODER bw"];
@@ -292,6 +298,8 @@ DECODERFW:{[OSEQ;T] ENC:0;DEC:1;DCDR:2;
 	
 	/LDWH::LDWH+((DINPUT*/:LSTMH[L;T]);(DFORGET*/:LSTMH[L;T]);(DOUTPUT*/:LSTMH[L;T]);(DUPDATE*/:LSTMH[L;T]))
 	LDWH[0;L]::LDWH[0;L]+(DINPUT*/:\: HIN);
+	show "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$";
+	show shape LDWH[0;L];
 	LDWH[1;L]::LDWH[1;L]+(DFORGET*/:\: HIN);
 	LDWH[2;L]::LDWH[2;L]+(DOUTPUT*/:\: HIN);
 	LDWH[3;L]::LDWH[3;L]+(DUPDATE*/:\: HIN);
@@ -341,7 +349,7 @@ SOFTMAXBW:{[i] SMT::SMT-1;
 
  EMBBW:{[L;DELTA] ET[L]::ET[L]-1;TX:raze EMBX[L];TX:TX[ET[L]];EMBDW[L;TX]::EMBDW[L;TX]+DELTA};
 
- ENCODERBW:{[L;ISEQ] H:LSTMBW[L;raze (1,HSZ)#0.0];
+ ENCODERBW:{[L;ISEQ] FW:0;BW:1;H:LSTMBW[FW;raze (1,HSZ)#0.0];H:LSTMBW[BW;raze (1,HSZ)#0.0];
 	H:EMBBW[L;H];
  };
 
@@ -354,11 +362,11 @@ GETCOST:{[CTR] T:neg sum(SMTARGETS[CTR]*log(SMPREDS[CTR]));:T};
 / TRAIN the whole shebang here 
 
 CCTR:0;
-TRAIN:{[T1;T2] L:0;
+TRAIN:{[T1;T2] 
+	/L:0;
+	/INITLAYER[L];
 	CLIPGRAD:5.0;
 	LR:0.00001;
-	show T1;
-	show T2;
 /========================================
 /	Forward pass
 /========================================
@@ -369,10 +377,10 @@ TRAIN:{[T1;T2] L:0;
 	/=======================
 	T:0;
 	while[T<count V;
-/
-	convert each  word to an index, so that the appropriate
-	weight is returned from embedding layer
-\
+	/======================================================*
+	/	convert each  word to an index, so that the appropriate
+	/ 	weight is returned from embedding layer
+	/======================================================*
 		ISEQFW:sum (select C2 from V where T in/: V[`C1])[`C2];
 		ISEQBW:sum (select C2 from V where ((-1+count GT)-T) in/: V[`C1])[`C2];
 		ENCODERFW[ISEQFW;ISEQBW];
@@ -389,8 +397,12 @@ TRAIN:{[T1;T2] L:0;
 	weight is returned from embedding layer
 	Send one word at a time to DECODER
 \
+	show "Before calling decoder FW, V = ";
+	show V;
     while[T<count V;
 		OSEQ:sum (select C2 from V where T in/: V[`C1])[`C2];
+		show "Before calling decoder FW, OSEQ = ";
+		show OSEQ;
 		DECODERFW[OSEQ;T];
 		T+:1;
 	    ];
@@ -401,7 +413,10 @@ TRAIN:{[T1;T2] L:0;
 	/	decoder
 	/=======================
 	/ v is the same as above
-	/ so is GT, only reversed(Alex Graves et al.)
+	/ so is GT, only reversed(Alex Graves et al
+	/L:1;
+	/INITLAYER[L];
+
 	GT:T2;
 	GT:reverse GT;
 	V:([]C1:value GT;C2:til count GT);
@@ -433,41 +448,41 @@ TRAIN:{[T1;T2] L:0;
 	:GETCOST[CCTR]
   };
 
+nRows:4;
+INITLAYER:{[L]
+	EMBDW[L]::(ISZ,HSZ)#0.0; 
+	ET[L]::0; 
+	EMBX[L]::enlist (); 
 
+	FW:0;
+	BW:1;
+	LSTMT[FW]::0;
+	LSTMT[BW]::nRows; / size of input DATAsET
+	LSTMX[L]::"0";
+	LSTMH[L]::(1,HSZ)#0;
+	LSTMC[L]::(1,HSZ)#0;
+	LSTMCT[L]::"0";
 
-/ INITLAYER:{[L]
-/ 	EMBDW[L]::(ISZ,HSZ)#0.0; 
-/ 	ET[L]::0; 
-/ 	EMBX[L]::enlist (); 
+	LSTMIG[L]::"0"; 
+	LSTMFG[L]::"0";
+	LSTMOG[L]::"0";
+	LSTMCUPD[L]::"0";
 
-/ 	LSTMT[FW]::0;
-/ 	LSTMT[BW]::nRows; / size of input DATAsET
-/ 	LSTMX[L]::"0";
-/ 	LSTMH[L]::(1,HSZ)#0;
-/ 	LSTMC[L]::(1,HSZ)#0;
-/ 	LSTMCT[L]::"0";
+	LDHPREV[L]::(1,HSZ)#0;
+	LDCPREV[L]::(1,HSZ)#0;
+	
 
-/ 	LSTMIG[L]::"0"; 
-/ 	LSTMFG[L]::"0";
-/ 	LSTMOG[L]::"0";
-/ 	LSTMCUPD[L]::"0";
+	LDB[;L;]::0.0;
+	LDWX[;L;;]::0.0;
+	LDWH[;L;;]::0.0;
 
-/ 	LDHPREV[L]::(1,HSZ)#0;
-/ 	LDCPREV[L]::(1,HSZ)#0;
-/ 	FW:0;
-/ 	BW:1;
-
-/ 	LDB[;L;]::0.0;
-/ 	LDWX[;L;;]::0.0;
-/ 	LDWH[;L;;]::0.0;
-
-/ 	if[L=BW;
-/ 		SMPREDS::();
-/ 		SMX::();
-/ 		SMTARGETS::();
-/ 		SMT::0;
-/ 		SMDW::(ISZ,HSZ)#0f]; /osz,HSZ
-/ 	};
+	if[L=BW;
+		SMPREDS::();
+		SMX::();
+		SMTARGETS::();
+		SMT::0;
+		SMDW::(ISZ,HSZ)#0f]; /osz,HSZ
+	};
 
 MAXL:10;
 APPLYOUTPUTMODEL:{[PREDICTION;TOKEN]
@@ -491,11 +506,26 @@ Then send the output seq. to the output layers
 whilst using the h and c values from input layer LSTM
 as indicated in the paper
 \
-PREDICT:{[ISEQ]L:0;
-	INITLAYER[L];
-	IFW[ISEQ;0];
+PREDICT:{[T1;T2]L:0;
+	/INITLAYER[L];
+	GT:T1;
+	V:([]C1:value GT;C2:til count GT);
+	/=======================
+	/	Encoder
+	/=======================
+	T:0;
+	while[T<count V;
+/
+	convert each  word to an index, so that the appropriate
+	weight is returned from embedding layer
+\
+		ISEQFW:sum (select C2 from V where T in/: V[`C1])[`C2];
+		ISEQBW:sum (select C2 from V where ((-1+count GT)-T) in/: V[`C1])[`C2];
+		ENCODERFW[ISEQFW;ISEQBW];
+		T+:1;
+    	];
 	L:1;
-	INITLAYER[L];
+	/INITLAYER[L];
 	PREDICTION:();
 	PREDICTION:APPLYOUTPUTMODEL[PREDICTION;0];
 	:PREDICTION
@@ -508,8 +538,24 @@ one word at a time
 \
 	T1:group " " vs TXT[0];
 	T2:group " " vs TXT[1];
-	TRAIN[T1;T2];
- };
+	show T1;
+	show T2;
+	COUNTER:1;
+	while[COUNTER < 100000;
+		show "COUNTER = ";
+		show COUNTER;
+		COST:TRAIN[T1;T2];
+		show "COST = ";
+		show COST;
+		if[0 = (COUNTER mod 100);
+			show "Calling predict:";
+			P:PREDICT[T1;T2];
+			show "prediction = ";
+			show P;
+			];
+		COUNTER+:1
+		];
+ 	};
 MAINP[0];
 
 /=============================================================================================
