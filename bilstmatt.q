@@ -98,8 +98,6 @@ LSTMFW:{[L;XT] FW:0;BW:1;DCDR:2;
 	if[L=BW;BAC+::1];
 	T:LSTMT[L];  H:"f"$LSTMH[L;T-1];
 
-	show "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^";
-	/show LWH[0;L];
 	k:(1%1+exp(-1*((LWH[0;L]$H)+(LWX[0;L]$XT)+LB[0;L])));
 	LSTMIG[L]::(LSTMIG[L], enlist k);
 
@@ -245,9 +243,6 @@ DECODERFW:{[OSEQ;T] ENC:0;DEC:1;DCDR:2;
 	/ GET word embedding
 	H:EMBFW[DCDR-1;OSEQ;0];
 	/ Call LSTM fw
-	show "Inside DECODERFW, EMBFW returned H:";
-	show H;
-	show shape H;
 	H:LSTMFW[DCDR;flip H];
 	/ Softmax output
 	H:SOFTMAXFW[H]
@@ -265,20 +260,20 @@ DECODERFW:{[OSEQ;T] ENC:0;DEC:1;DCDR:2;
 
 	DH:DH+raze LDHPREV[L]; 
 
-	TMP:LSTMCT[L;T]; 
-	DC:((1-TMP*TMP)*LSTMOG[L;T]*DH)+raze LDCPREV[L]; 
+	TMP:raze LSTMCT[L;T]; 
+	DC:raze ((1-TMP*TMP)*LSTMOG[L;T]*DH)+raze LDCPREV[L]; 
 
 	TMP:LSTMIG[L;T]; 
-	DINPUT:(TMP*(1-TMP))*LSTMCUPD[L;T]*DC; 
+	DINPUT:raze (TMP*(1-TMP))*LSTMCUPD[L;T]*DC; 
 
 	TMP:LSTMFG[L;T]; 
-	DFORGET:(TMP*(1-TMP))*LSTMC[L;T-1]*DC; 
+	DFORGET:raze (TMP*(1-TMP))*LSTMC[L;T-1]*DC; 
 
 	TMP:LSTMOG[L;T]; 
-	DOUTPUT:(TMP*(1-TMP))*LSTMCT[L;T]*DH; 
+	DOUTPUT:raze (TMP*(1-TMP))*LSTMCT[L;T]*DH; 
 
 	TMP:LSTMCUPD[L;T]; 
-	DUPDATE:(1-TMP*TMP)*LSTMIG[L;T]*DC; 
+	DUPDATE:raze (1-TMP*TMP)*LSTMIG[L;T]*DC; 
 
 	LDCPREV[L]::LSTMFG[L;T]*DC; 
 
@@ -290,16 +285,15 @@ DECODERFW:{[OSEQ;T] ENC:0;DEC:1;DCDR:2;
 
 	HIN:LSTMH[L;T-1]; 
 	/LDWX::LDWX+((DINPUT*/:LSTMX[L;T]);(DFORGET*/:LSTMX[L;T]);(DOUTPUT*/:LSTMX[L;T]);(DUPDATE*/:LSTMX[L;T]))
-	LDWX[0;L]::LDWX[0;L]+ (DINPUT*/:\: LSTMX[L;T]); 
-	LDWX[1;L]::LDWX[1;L]+ (DFORGET*/:\: LSTMX[L;T]);
-	LDWX[2;L]::LDWX[2;L]+ (DOUTPUT*/:\: LSTMX[L;T]); 
-	LDWX[3;L]::LDWX[3;L]+ (DUPDATE*/:\: LSTMX[L;T]);
+	LDWX[0;L]::LDWX[0;L]+ (DINPUT*/:\: raze LSTMX[L;T]); 
+	LDWX[1;L]::LDWX[1;L]+ (DFORGET*/:\: raze LSTMX[L;T]);
+	LDWX[2;L]::LDWX[2;L]+ (DOUTPUT*/:\: raze LSTMX[L;T]); 
+	LDWX[3;L]::LDWX[3;L]+ (DUPDATE*/:\: raze LSTMX[L;T]);
+	/kumar;
 
 	
 	/LDWH::LDWH+((DINPUT*/:LSTMH[L;T]);(DFORGET*/:LSTMH[L;T]);(DOUTPUT*/:LSTMH[L;T]);(DUPDATE*/:LSTMH[L;T]))
 	LDWH[0;L]::LDWH[0;L]+(DINPUT*/:\: HIN);
-	show "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$";
-	show shape LDWH[0;L];
 	LDWH[1;L]::LDWH[1;L]+(DFORGET*/:\: HIN);
 	LDWH[2;L]::LDWH[2;L]+(DOUTPUT*/:\: HIN);
 	LDWH[3;L]::LDWH[3;L]+(DUPDATE*/:\: HIN);
