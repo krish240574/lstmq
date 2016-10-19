@@ -339,15 +339,13 @@ NORMALIZEGRADS:{[n]LDWX::LDWX%n;LDWH::LDWH%n;EMBDW::EMBDW%n;SMDW::SMDW%n};
 TAKESTEP:{[LR]LWX::LWX-LR*LDWX;LWH::LWH-LR*LDWH;LB::LB-LR*LDB;EMBW::EMBW-LR*EMBDW;SMW::SMW-LR*SMDW};
 
 / Get cost for this training run
-GETCOST:{[DUMMY]if[0=CTR mod 10;show "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&";show SMPREDS];A::SMTARGETS,'reverse SMPREDS;:sum {neg log(A[x])(A[x;0]+1)}each til count SMTARGETS};
-CTR:0;
+GETCOST:{[DUMMY]A::SMTARGETS,'reverse SMPREDS;:sum {neg log(A[x][A[x;0]+1])}each til count SMTARGETS};
 / TRAIN the whole shebang here 
 TRAIN:{[T1;T2] DCDR:2; 
 	L:0;
-	INITLAYER[L];
-	CTR+::1;
+	INITENCODER[L];
 	CLIPGRAD:5.0;
-	LR:0.00001;
+	LR:0.1;
 /========================================
 /	Forward pass
 /========================================
@@ -370,6 +368,8 @@ TRAIN:{[T1;T2] DCDR:2;
 	/=======================
 	/	decoder
 	/=======================
+	L:DCDR;
+	INITDECODER[L];
 	GT:T2;
 	V:([]C1:value GT;C2:til count GT);
 	T:0;
@@ -396,9 +396,7 @@ TRAIN:{[T1;T2] DCDR:2;
 	/=======================
 	/ v is the same as above
 	/ so is GT, only reversed
-	L:DCDR;
-	INITLAYER[L];
-
+	
 	GT:T2;
 	GT:reverse GT;
 	V:([]C1:value GT;C2:til count GT);
@@ -428,95 +426,73 @@ TRAIN:{[T1;T2] DCDR:2;
 	show GRADNORM;
 	if[GRADNORM>CLIPGRAD;show "NORMALIZING......";NORMALIZEGRADS(GRADNORM%CLIPGRAD)];
 	TAKESTEP[LR];
-
 	:GETCOST[0]
+	kumar;
 	};
 
 nRows:4;
-INITLAYER:{[L] 
+INITENCODER:{[L] 
 	EMBDW[L]::(ISZ,HSZ)#0.0; 
 	ET[L]::0; 
 	EMBX[L]::enlist (); 
-
-	EMBDW[L+1]::(ISZ,HSZ)#0.0; 
-	ET[L+1]::0; 
-	EMBX[L+1]::enlist (); 
-
 	FW:0;
 	BW:1;
 	LSTMT[FW]::0;
-	LSTMT[BW]::0; / size of input DATAsET
-
+	LSTMT[BW]::0; 
 	LSTMX[FW]::"0";
 	LSTMX[BW]::"0";
-
-	LSTMH[FW]::(1,HSZ)#0;
-	LSTMH[BW]::(1,HSZ)#0;
-
-	LSTMC[FW]::(1,HSZ)#0;
-	LSTMC[BW]::(1,HSZ)#0;
-
+	LSTMH[FW]::(1,HSZ)#0f;
+	LSTMH[BW]::(1,HSZ)#0f;
+	LSTMC[FW]::(1,HSZ)#0f;
+	LSTMC[BW]::(1,HSZ)#0f;
 	LSTMCT[FW]::"0";
 	LSTMCT[FW]::"0";
-
 	LSTMIG[FW]::"0"; 
 	LSTMFG[FW]::"0";
 	LSTMOG[FW]::"0";
 	LSTMCUPD[FW]::"0";
-
 	LSTMIG[BW]::"0"; 
 	LSTMFG[BW]::"0";
 	LSTMOG[BW]::"0";
 	LSTMCUPD[BW]::"0";
-
-	LDHPREV[FW]::(1,HSZ)#0;
-	LDCPREV[FW]::(1,HSZ)#0;
-
-	LDHPREV[BW]::(1,HSZ)#0;
-	LDCPREV[BW]::(1,HSZ)#0;
-	
+	LDHPREV[FW]::(1,HSZ)#0f;
+	LDCPREV[FW]::(1,HSZ)#0f;
+	LDHPREV[BW]::(1,HSZ)#0f;
+	LDCPREV[BW]::(1,HSZ)#0f;
 	LDB[;L;]::0.0;
 	LDWX[;L;;]::0.0;
-	LDWH[;L;;]::0.0
-	
-
+	LDWH[;L;;]::0.0;
 	FAC::0;
 	BAC::0;
+	};
+
+INITDECODER:{[L]
 	DCDR:2;
-
-	if[L=2;
-		LSTMT[L]::0;
-		LSTMX[L]::"0";
-		LSTMH[L]::(1,HSZ)#0;
-		LSTMC[L]::(1,HSZ)#0;
-		LSTMCT[L]::"0";
-
-		LSTMIG[L]::"0"; 
-		LSTMFG[L]::"0";
-		LSTMOG[L]::"0";
-		LSTMCUPD[L]::"0";
-
-		LDHPREV[L]::(1,HSZ)#0;
-		LDCPREV[L]::(1,HSZ)#0;
-
-
-		LDB[;L;]::0.0;
-		LDWX[;L;;]::0.0;
-		LDWH[;L;;]::0.0;
-	
-	
-		show "INIT LAYER 2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
-		SMPREDS::();
-		SMX::();
-		SMTARGETS::();
-		SMT::0;
-		SMDW::(ISZ,HSZ)#0f
-		]; 
+	LSTMT[L]::0;
+	LSTMX[L]::"0";
+	LSTMH[L]::(1,HSZ)#0;
+	LSTMC[L]::(1,HSZ)#0;
+	LSTMCT[L]::"0";
+	LSTMIG[L]::"0"; 
+	LSTMFG[L]::"0";
+	LSTMOG[L]::"0";
+	LSTMCUPD[L]::"0";
+	LDHPREV[L]::(1,HSZ)#0;
+	LDCPREV[L]::(1,HSZ)#0;
+	LDB[;L;]::0.0;
+	LDWX[;L;;]::0.0;
+	LDWH[;L;;]::0.0;
+	SMPREDS::();
+	SMX::();
+	SMTARGETS::();
+	SMT::0;
+	SMDW::(ISZ,HSZ)#0f
 	};
 
 MAXL:10;
+EOS:0;
 APPLYOUTPUTMODEL:{[PREDICTION;TOKEN]
-	TMP:DECODERFW[(enlist TOKEN);0];
+	TMP:DECODERFW[(TOKEN);0];
 	TOKEN:sum where TMP = (max TMP);	
 	if[(TOKEN<>EOS) and (MAXL > count PREDICTION);
 		$[0=count PREDICTION;
@@ -536,8 +512,8 @@ Then send the output seq. to the output layers
 whilst using the h and c values from input layer LSTM
 as indicated in the paper
 \
-PREDICT:{[T1;T2]L:0;
-	/INITLAYER[L];
+PREDICT:{[T1;T2]L:0;DCDR:2;
+	INITENCODER[L];
 	GT:T1;
 	V:([]C1:value GT;C2:til count GT);
 	/=======================
@@ -554,8 +530,8 @@ PREDICT:{[T1;T2]L:0;
 		ENCODERFW[ISEQFW;ISEQBW];
 		T+:1;
     	];
-	L:1;
-	/INITLAYER[L];
+	L:DCDR;
+	INITDECODER[L];
 	PREDICTION:();
 	PREDICTION:APPLYOUTPUTMODEL[PREDICTION;0];
 	:PREDICTION
