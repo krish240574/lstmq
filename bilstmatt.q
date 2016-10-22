@@ -25,30 +25,12 @@ EMBX:(3 1)#();
 
 
 /**************************L*S*T*M******************************************/
-LWH:((3,HSZ,HSZ)#SAMPLER[MASTER;1000];
-	(3,HSZ,HSZ)#SAMPLER[MASTER;1000];
-	(3,HSZ,HSZ)#SAMPLER[MASTER;1000];
-	(3,HSZ,HSZ)#SAMPLER[MASTER;1000]); /i,f,o,j
-LWX:((3,HSZ,ESZ)#SAMPLER[MASTER;1000];
-	(3,HSZ,ESZ)#SAMPLER[MASTER;1000];
-	(3,HSZ,ESZ)#SAMPLER[MASTER;1000];
-	(3,HSZ,ESZ)#SAMPLER[MASTER;1000]);
-LB:((3,HSZ)#0f;
-	(3,HSZ)#0f;
-	(3,HSZ)#0f;
-	3*(3,HSZ)#1f); / bi;bf;bo;bj
-LDB:((3,HSZ)#0f;
-	(3,HSZ)#0f;
-	(3,HSZ)#0f;
-	(3,HSZ)#0f); / bi;bf;bo;bj
-LDWX:((3,HSZ,ESZ)#0f;
-	(3,HSZ,ESZ)#0f;
-	(3,HSZ,ESZ)#0f;
-	(3,HSZ,ESZ)#0f); 
-LDWH:((3,HSZ,HSZ)#0f;
-	(3,HSZ,HSZ)#0f;
-	(3,HSZ,HSZ)#0f;
-	(3,HSZ,HSZ)#0f);
+LWH:((3,HSZ,HSZ)#SAMPLER[MASTER;1000];(3,HSZ,HSZ)#SAMPLER[MASTER;1000];(3,HSZ,HSZ)#SAMPLER[MASTER;1000];(3,HSZ,HSZ)#SAMPLER[MASTER;1000]); /i,f,o,j
+LWX:((3,HSZ,ESZ)#SAMPLER[MASTER;1000];(3,HSZ,ESZ)#SAMPLER[MASTER;1000];(3,HSZ,ESZ)#SAMPLER[MASTER;1000];(3,HSZ,ESZ)#SAMPLER[MASTER;1000]);
+LB:((3,HSZ)#0f;(3,HSZ)#0f;(3,HSZ)#0f;3*(3,HSZ)#1f); / bi;bf;bo;bj
+LDB:((3,HSZ)#0f;(3,HSZ)#0f;(3,HSZ)#0f;(3,HSZ)#0f); / bi;bf;bo;bj
+LDWX:((3,HSZ,ESZ)#0f;(3,HSZ,ESZ)#0f;(3,HSZ,ESZ)#0f;(3,HSZ,ESZ)#0f); 
+LDWH:((3,HSZ,HSZ)#0f;(3,HSZ,HSZ)#0f;(3,HSZ,HSZ)#0f;(3,HSZ,HSZ)#0f);
 LSTMX:(3 1)#"0";
 
 LSTMT:(0;0;0); / time pointer in LSTM
@@ -66,16 +48,14 @@ LDCPREV:(3,1,HSZ)#0;
 FWANNOT:();
 BWANNOT:();
 ANNOT:();
-
-
 / Softmax variables
 SMPREDS:();
 SMX:();
 SMTARGETS:();
 SMT:0;
-/
-osz,HSZ - 2 sETs of weights, one from fw and bw lstm resp.
-\
+
+/ osz,HSZ - 2 sETs of weights, one from fw and bw lstm resp.
+
 SMW:(ISZ,HSZ)#SAMPLER[MASTER;1000]; 
 SMDW:(ISZ,HSZ)#0; /osz,HSZ
 
@@ -422,16 +402,16 @@ TRAIN:{[T1;T2] DCDR:2;
 	/ SGD with gradient clipping
 	/============================
 	GRADNORM: sqrt((sum over LDWX xexp 2)+(sum over LDWH xexp 2) +(sum over EMBDW xexp 2)+(sum over SMDW xexp 2));
-	show "GRADNORM = ";
-	show GRADNORM;
 	if[GRADNORM>CLIPGRAD;show "NORMALIZING......";NORMALIZEGRADS(GRADNORM%CLIPGRAD)];
 	TAKESTEP[LR];
-	:GETCOST[0]
-	kumar;
+	:GETCOST[0];
 	};
 
 nRows:4;
 INITENCODER:{[L] 
+	ANNOT::();
+	FWANNOT::();
+	BWANNOT::();
 	EMBDW[L]::(ISZ,HSZ)#0.0; 
 	ET[L]::0; 
 	EMBX[L]::enlist (); 
@@ -539,7 +519,7 @@ PREDICT:{[T1;T2]L:0;DCDR:2;
 
 MAINP:{[DUMMY] TXT:read0 `text.TXT;
 /
-read from disk, assign numbers and train
+read from disk, and train
 one word at a time
 \
 	T1:group " " vs TXT[0];
@@ -565,411 +545,3 @@ one word at a time
 MAINP[0];
 
 /=============================================================================================
-
-
-
-/  ENCODERbw:{[L;DH]FW:0;BW:0;
-
-/ 	/ BACkward LSTM first
-/ 	L:BW;
-/ 	DCDR:2;
-/ 	LDHPREV[L]::LDHPREV[DCDR];LDCPREV[L]::LDCPREV[DCDR];
-
-/ 	t:LSTMT[L];
-/ 	tDH:DH;
-/ 	DH:tDH+raze LDHPREV[L]; 
-
-/ 	TMP:LSTMCT[L;T]; 
-/ 	DC:((1-TMP*TMP)*LSTMOG[L;T]*DH)+raze LDCPREV[L]; 
-
-/ 	TMP:LSTMIG[L;T]; 
-/ 	DINPUT:(TMP*(1-TMP))*LSTMCUPD[L;T]*DC; 
-
-/ 	TMP:LSTMFG[L;T]; 
-/ 	DFORGET:(TMP*(1-TMP))*LSTMC[L;T+1]*DC; 
-
-/ 	TMP:LSTMOG[L;T]; 
-/ 	DOUTPUT:(TMP*(1-TMP))*LSTMCT[L;T]*DH; 
-
-/ 	TMP:LSTMCUPD[L;T]; 
-/ 	DUPDATE:(1-TMP*TMP)*LSTMIG[L;T]*DC; 
-
-/ 	LDCPREV[L]::LSTMFG[L;T]*DC; 
-
-/ 	LDB[0;L]::LDB[0;L]+DINPUT;
-/ 	LDB[1;L]::LDB[1;L]+DFORGET;
-/ 	LDB[ 2;L]::LDB[2;L]+DOUTPUT; 
-/ 	LDB[3;L]::LDB[3;L]+DUPDATE; 
-
-/ 	HIN:LSTMH[L;T+1]; 
-/ 	LDWX[0;L]::LDWX[0;L]+(DINPUT*/:LSTMX[L;T]); 
-/ 	LDWX[1;L]::LDWX[1;L]+(DFORGET*/:LSTMX[L;T]);
-/ 	LDWX[2;L]::LDWX[2;L]+(DOUTPUT*/:LSTMX[L;T]); 
-/ 	LDWX[3;L]::LDWX[3;L]+(DUPDATE*/:LSTMX[L;T]);
-	
-/ 	LDWH[0;L]::LDWH[0;L]+(DINPUT*/:HIN);
-/ 	LDWH[1;L]::LDWH[1;L]+(DFORGET*/:HIN);
-/ 	LDWH[2;L]::LDWH[2;L]+(DOUTPUT*/:HIN);
-/ 	LDWH[3;L]::LDWH[3;L]+(DUPDATE*/:HIN);
-
-/ 	LDHPREV[L]::((flip LWH[0;L])$DINPUT);
-/ 	LDHPREV[L]::LDHPREV[L]+((flip LWH[1;L])$DFORGET);
-/ 	LDHPREV[L]::LDHPREV[L]+((flip LWH[2;L])$DOUTPUT);
-/ 	LDHPREV[L]::LDHPREV[L]+((flip LWH[3;L])$DUPDATE);
-
-/ 	dX:(flip LWX[0;L])$DINPUT;
-/ 	dX:dX+(flip LWX[1;L])$DFORGET;
-/ 	dX:dX+(flip LWX[2;L])$DOUTPUT;
-/ 	dX:dX+(flip LWX[3;L])$DUPDATE;
-/ 	LSTMT[L]::LSTMT[L]+1;
-/ 	:dX 
-
-/ 	/------------------------
-/ 	L:FW;
-/ 	LDHPREV[L]::LDHPREV[DCDR];LDCPREV[L]::LDCPREV[DCDR];
-
-/ 	t:LSTMT[L];
-
-/ 	DH:tDH+raze LDHPREV[L]; 
-
-/ 	TMP:LSTMCT[L;T]; 
-/ 	DC:((1-TMP*TMP)*LSTMOG[L;T]*DH)+raze LDCPREV[L]; 
-
-/ 	TMP:LSTMIG[L;T]; 
-/ 	DINPUT:(TMP*(1-TMP))*LSTMCUPD[L;T]*DC; 
-
-/ 	TMP:LSTMFG[L;T]; 
-/ 	DFORGET:(TMP*(1-TMP))*LSTMC[L;T-1]*DC; 
-
-/ 	TMP:LSTMOG[L;T]; 
-/ 	DOUTPUT:(TMP*(1-TMP))*LSTMCT[L;T]*DH; 
-
-/ 	TMP:LSTMCUPD[L;T]; 
-/ 	DUPDATE:(1-TMP*TMP)*LSTMIG[L;T]*DC; 
-
-/ 	LDCPREV[L]::LSTMFG[L;T]*DC; 
-
-/ 	LDB[0;L]::LDB[0;L]+DINPUT;
-/ 	LDB[1;L]::LDB[1;L]+DFORGET;
-/ 	LDB[2;L]::LDB[2;L]+DOUTPUT; 
-/ 	LDB[3;L]::LDB[3;L]+DUPDATE; 
-
-/ 	HIN:LSTMH[L;T-1]; 
-/ 	LDWX[0;L]::LDWX[0;L]+(DINPUT*/:LSTMX[L;T]); 
-/ 	LDWX[1;L]::LDWX[1;L]+(DFORGET*/:LSTMX[L;T]);
-/ 	LDWX[2;L]::LDWX[2;L]+(DOUTPUT*/:LSTMX[L;T]); 
-/ 	LDWX[3;L]::LDWX[3;L]+(DUPDATE*/:LSTMX[L;T]);
-	
-/ 	LDWH[0;L]::LDWH[0;L]+(DINPUT*/:HIN);
-/ 	LDWH[1;L]::LDWH[1;L]+(DFORGET*/:HIN);
-/ 	LDWH[2;L]::LDWH[2;L]+(DOUTPUT*/:HIN);
-/ 	LDWH[3;L]::LDWH[3;L]+(DUPDATE*/:HIN);
-
-/ 	LDHPREV[L]::((flip LWH[0;L])$DINPUT);
-/ 	LDHPREV[L]::LDHPREV[L]+((flip LWH[1;L])$DFORGET);
-/ 	LDHPREV[L]::LDHPREV[L]+((flip LWH[2;L])$DOUTPUT);
-/ 	LDHPREV[L]::LDHPREV[L]+((flip LWH[3;L])$DUPDATE);
-
-/ 	dX:(flip LWX[0;L])$DINPUT;
-/ 	dX:dX+(flip LWX[1;L])$DFORGET;
-/ 	dX:dX+(flip LWX[2;L])$DOUTPUT;
-/ 	dX:dX+(flip LWX[3;L])$DUPDATE;
-/ 	LSTMT[L]::LSTMT[L]-1;
-/  };
-
-
-/  DECODERbw:{
-
-/  	DCRD:2;
-/  	L:DCDR;
-/ 	t:LSTMT[L];
-
-/ 	DH:tDH+raze LDHPREV[L]; 
-
-/ 	TMP:LSTMCT[L;T]; 
-/ 	DC:((1-TMP*TMP)*LSTMOG[L;T]*DH)+raze LDCPREV[L]; 
-
-/ 	TMP:LSTMIG[L;T]; 
-/ 	DINPUT:(TMP*(1-TMP))*LSTMCUPD[L;T]*DC; 
-
-/ 	TMP:LSTMFG[L;T]; 
-/ 	DFORGET:(TMP*(1-TMP))*LSTMC[L;T-1]*DC; 
-
-/ 	TMP:LSTMOG[L;T]; 
-/ 	DOUTPUT:(TMP*(1-TMP))*LSTMCT[L;T]*DH; 
-
-/ 	TMP:LSTMCUPD[L;T]; 
-/ 	DUPDATE:(1-TMP*TMP)*LSTMIG[L;T]*DC; 
-
-/ 	LDCPREV[L]::LSTMFG[L;T]*DC; 
-
-/ 	/LDB::LDB+((DINPUT;DFORGET;DOUTPUT;DUPDATE))
-/ 	LDB[0;L]::LDB[0;L]+DINPUT;
-/ 	LDB[1;L]::LDB[1;L]+DFORGET;
-/ 	LDB[2;L]::LDB[2;L]+DOUTPUT; 
-/ 	LDB[3;L]::LDB[3;L]+DUPDATE; 
-
-/ 	HIN:LSTMH[L;T-1]; 
-/ 	/LDWX::LDWX+((DINPUT*/:LSTMX[L;T]);(DFORGET*/:LSTMX[L;T]);(DOUTPUT*/:LSTMX[L;T]);(DUPDATE*/:LSTMX[L;T]))
-/ 	LDWX[0;L]::LDWX[0;L]+(DINPUT*/:LSTMX[L;T]); 
-/ 	LDWX[1;L]::LDWX[1;L]+(DFORGET*/:LSTMX[L;T]);
-/ 	LDWX[2;L]::LDWX[2;L]+(DOUTPUT*/:LSTMX[L;T]); 
-/ 	LDWX[3;L]::LDWX[3;L]+(DUPDATE*/:LSTMX[L;T]);
-	
-/ 	/LDWH::LDWH+((DINPUT*/:LSTMH[L;T]);(DFORGET*/:LSTMH[L;T]);(DOUTPUT*/:LSTMH[L;T]);(DUPDATE*/:LSTMH[L;T]))
-/ 	LDWH[0;L]::LDWH[0;L]+(DINPUT*/:HIN);
-/ 	LDWH[1;L]::LDWH[1;L]+(DFORGET*/:HIN);
-/ 	LDWH[2;L]::LDWH[2;L]+(DOUTPUT*/:HIN);
-/ 	LDWH[3;L]::LDWH[3;L]+(DUPDATE*/:HIN);
-
-/ 	/LDHPREV[L]::((flip LWH[0;L])$DINPUT) + ((flip LWH[1;L])$DFORGET) + ((flip LWH[2;L])$DOUTPUT) + ((flip LWH[3;L])$DUPDATE);
-/ 	/LDHPREV[L]::(flip LWH[0;L];flip LWH[1;L];flip LWH[2;L];flip LWH[3;L])$(4 1)#(DINPUT;DFORGET;DOUTPUT;DUPDATE)
-/ 	LDHPREV[L]::((flip LWH[0;L])$DINPUT);
-/ 	LDHPREV[L]::LDHPREV[L]+((flip LWH[1;L])$DFORGET);
-/ 	LDHPREV[L]::LDHPREV[L]+((flip LWH[2;L])$DOUTPUT);
-/ 	LDHPREV[L]::LDHPREV[L]+((flip LWH[3;L])$DUPDATE);
-
-/ 	/dX::(flip LWX[0;L];flip LWX[1;L];flip LWX[2;L];flip LWX[3;L])$(4 1)#(DINPUT;DFORGET;DOUTPUT;DUPDATE)
-/ 	dX:(flip LWX[0;L])$DINPUT;
-/ 	dX:dX+(flip LWX[1;L])$DFORGET;
-/ 	dX:dX+(flip LWX[2;L])$DOUTPUT;
-/ 	dX:dX+(flip LWX[3;L])$DUPDATE;
-/ 	LSTMT[L]::LSTMT[L]-1;
-/  }
-
-
-/ SOFTMAXBW:{[i]SMT::SMT-1;
-/ 	$[0=count SMTARGETS;SMTARGETS::i;SMTARGETS::(SMTARGETS, enlist i)];
-/ 	TMPX:raze over ((HSZ,1)#SMX[SMT]);
-/ 	TMPD:raze over ((1,ISZ)#SMPREDS[SMT]);
-/ 	TMPD[i]:TMPD[i]-1;
-/ 	SMDW::SMDW+flip (TMPD*/:TMPX);
-/ 	DELTA:(1,HSZ)#(flip SMW)$TMPD; 
-/ 	:DELTA
-/  }
-
-
-/ embbw:{[L;DELTA]ET[L]::ET[L]-1;	tx:raze EMBX[L];Tx:tx[ET[L]];EMBDW[L;Tx]::EMBDW[L;Tx]+DELTA}
-
-
-
-/ NORMALIZEGRADS:{[n]LDWX::LDWX%n;LDWH::LDWH%n;EMBDW::EMBDW%n;SMDW::SMDW%n};
-/ TAKESTEP:{[LR]LWX::LWX-LR*LDWX;LWH::LWH-LR*LDWH;LB::LB-LR*LDB;EMBW::EMBW-LR*EMBDW;SMW::SMW-LR*SMDW};
-
-/ / GET cost for this TRAINing run
-/ GETCOST:{[ctr]
-/ 	/sum {-1*LOg((SMPREDS[x])[SMTARGETS[x]])}eACh til count SMTARGETS};
-
-/ 	t:-1*sum(SMTARGETS[ctr]*LOg(SMPREDS[ctr]));
-/ 	:t
-/         }
-
-/ INITLAYER:{[L]
-/ 	EMBDW[L]::(ISZ,HSZ)#0.0; 
-/ 	ET[L]::0; 
-/ 	EMBX[L]::enlist (); 
-
-/ 	LSTMT[FW]::0;
-/ 	LSTMT[BW]::nRows; / size of input DATAsET
-/ 	LSTMX[L]::"0";
-/ 	LSTMH[L]::(1,HSZ)#0;
-/ 	LSTMC[L]::(1,HSZ)#0;
-/ 	LSTMCT[L]::"0";
-
-/ 	LSTMIG[L]::"0"; 
-/ 	LSTMFG[L]::"0";
-/ 	LSTMOG[L]::"0";
-/ 	LSTMCUPD[L]::"0";
-
-/ 	LDHPREV[L]::(1,HSZ)#0;
-/ 	LDCPREV[L]::(1,HSZ)#0;
-/ 	FW:0;
-/ 	BW:1;
-
-/ 	/if[L=BW;LSTMH[L;0]::LSTMH[FW;LSTMT[FW]];LSTMC[L;0]::LSTMC[FW;LSTMT[FW]]];
-/ 	/if[L=FW;LDHPREV[L]::LDHPREV[BW];LDCPREV[L]::LDCPREV[BW]];
-
-/ 	LDB[;L;]::0.0;
-/ 	LDWX[;L;;]::0.0;
-/ 	LDWH[;L;;]::0.0;
-
-/ 	if[L=BW;
-/ 		SMPREDS::();
-/ 		SMX::();
-/ 		SMTARGETS::();
-/ 		SMT::0;
-/ 		SMDW::(ISZ,HSZ)#0f]; /osz,HSZ
-/ 	}
-
-/ EOS:0;
-/ MAXL:10;
-/ APPLYOUTPUTMODEL:{[PREDICTION;TOKEN]
-/ 	TMP:TOKEN;
-/ 	TMP:ofw[(enlist TMP);0];
-/ 	TOKEN:sum where TMP = (max TMP);	
-/ 	if[(TOKEN<>EOS) and (MAXL > count PREDICTION);
-/ 		$[0=count PREDICTION;
-/ 			PREDICTION:TOKEN;
-/ 			PREDICTION:(PREDICTION,enlist TOKEN)
-/ 		 ];
-/ 		APPLYOUTPUTMODEL[PREDICTION;TOKEN]
-/ 	  ];
-/ 	:PREDICTION
-/ 	}
-/ / Bubble input sequence through input layers
-/ 	/ Then send the output seq. to the output layers
-/ 	/ whilst using the h and c values from input layer LSTM
-/ 	/ as indicated in the paper
-/ PREDICT:{[ISEQ]L:0;
-/ 	INITLAYER[L];
-/ 	IFW[ISEQ;0];
-/ 	L:1;
-/ 	INITLAYER[L];
-/ 	PREDICTION:APPLYOUTPUTMODEL[PREDICTION;0];
-/ 	:PREDICTION
-/  }
-
-
-/ mainp:{[counter]
-/ 	while[counter < 100000;
-/ 	cost:TRAIN[(2;1);2];
-/ 	/ show "cosT1:";
-/ 	/ show cost;
-/ 	cost:cost+TRAIN[enlist (1);1];
-/ 	/ show "cosT2:";
-/ 	/ show cost;
-/ 	/ cost:cost+TRAIN[(3;1);3];
-/ 	/ show "cost3:";
-/ 	/show cost;
-/ 	if[0 = (counter mod 100);
-/ 		show "EpocH:";
-/ 		show counter;
-/ 		show "TRAINing cost:";
-/ 		show cost%2;	
-/ 		show "PREDICTing for [2,1] -> ";
-/ 		show PREDICT[(2;1)];
-/ 		show "PREDICTing for [1] -> ";
-/ 		show PREDICT[enlist (1)];
-/ 		/ show "PREDICTing for [3,1] -> ";
-/ 		/ show PREDICT[(3;1)];
-/ 		show "---------------";];
-/ 		counter:counter+1;]
-/ 		 }
-
-/ mainp[0]; 
-
-/ ENCODERFW:{[FWXT;BWXT] FW:0;BW:1;
-
-/ 	show "Inside ENCODER fw";
-/ 	show shape FWXT;
-/ 	L:FW; LSTMT[L]::LSTMT[L]+1; t:LSTMT[L]; AC::AC+1; H:"f"$LSTMH[L;T-1];
-
-/ 	k:(1%1+exp(-1*((LWH[0;L]$h)+(LWX[0;L]$FWXT)+LB[0;L])));
-/ 	LSTMIG[L]::(LSTMIG[L], enlist k);
-
-/ 	k:(1%1+exp(-1*((LWH[1;L]$h)+(LWX[1;L]$FWXT)+LB[1;L])));
-/ 	LSTMFG[L]::(LSTMFG[L], enlist k);
-
-/ 	k:(1%1+exp(-1*((LWH[2;L]$h)+(LWX[2;L]$FWXT)+LB[2;L])));
-/ 	LSTMOG[L]::(LSTMOG[L], enlist k);
-
-/ 	TMP:(LWH[3;L]$h)+(LWX[3;L]$FWXT)+LB[3;L];
-/ 	k:((exp(TMP)-exp(-1*TMP)))%((exp(TMP)+exp(-1*TMP)));
-/ 	LSTMCUPD[L]::(LSTMCUPD[L], enlist k);
-
-/ 	TMP:(raze LSTMIG[L;T]*LSTMCUPD[L;T])+(raze LSTMFG[L;T])*LSTMC[L;T-1];
-/ 	LSTMC[L]::(LSTMC[L], enlist TMP);
-
-/ 	TMP:((exp(TMP)-exp(-1*TMP)))%((exp(TMP)+exp(-1*TMP)));
-/ 	LSTMCT[L]::(LSTMCT[L], enlist TMP);
-
-/ 	TMP:LSTMOG[L;T]*LSTMCT[L;T];
-/ 	LSTMH[L]::(LSTMH[L], enlist TMP);
-
-/ 	LSTMX[L]::(LSTMX[L], enlist FWXT);
-/ 	$[0=count FWANNOT;
-/ 		FWANNOT::enlist LSTMH[L;AC];
-/ 		FWANNOT::FWANNOT, enlist(LSTMH[L;AC])
-/ 		];
-
-
-/ / reverse
-/ 	L:BW; LSTMT[L]::LSTMT[L]+1; t:LSTMT[L]; H:"f"$LSTMH[L;T-1];
-
-/ 	k:(1%1+exp(-1*((LWH[0;L]$h)+(LWX[0;L]$BWXT)+LB[0;L])));
-/ 	LSTMIG[L]::(LSTMIG[L], enlist k);
-
-/ 	k:(1%1+exp(-1*((LWH[1;L]$h)+(LWX[1;L]$BWXT)+LB[1;L])));
-/ 	LSTMFG[L]::(LSTMFG[L], enlist k);
-
-/ 	k:(1%1+exp(-1*((LWH[2;L]$h)+(LWX[2;L]$BWXT)+LB[2;L])));
-/ 	LSTMOG[L]::(LSTMOG[L], enlist k);
-	
-/ 	TMP:(LWH[3;L]$h)+(LWX[3;L]$BWXT)+LB[3;L];
-/ 	k:((exp(TMP)-exp(-1*TMP)))%((exp(TMP)+exp(-1*TMP)));
-/ 	LSTMCUPD[L]::(LSTMCUPD[L], enlist k);	
- 	
-/ 	TMP:(raze LSTMIG[L;T]*LSTMCUPD[L;T])+(raze LSTMFG[L;T])*LSTMC[L;T-1];
-/ 	LSTMC[L]::(LSTMC[L], enlist TMP);
-
-/ 	TMP:((exp(TMP)-exp(-1*TMP)))%((exp(TMP)+exp(-1*TMP)));
-/ 	LSTMCT[L]::(LSTMCT[L], enlist TMP);
-	
-/ 	TMP:LSTMOG[L;T]*LSTMCT[L;T];
-/ 	LSTMH[L]::(LSTMH[L], enlist TMP);
-	
-/ 	LSTMX[L]::(LSTMX[L], enlist BWXT);
-
-/ 	show "added to both ANNOTs";
-/ 	/ This list will need to be reversed before concatenation
-/ 	/ with the FWANNOT
-/ 	$[0=count BWANNOT;
-/ 		BWANNOT::enlist LSTMH[L;AC];
-/ 		BWANNOT::BWANNOT,enlist(LSTMH[L;AC])
-/ 		];
-/ 	};
-
-
-/ DECODERFw:{[L;xt] FW:0;BW:1;
-
-/ 	L:DCDR;
-
-/ /LSTMH[L;0]::LSTMH[FW;LSTMT[FW]],LSTMH[BW, LSTMT[BW]]; 
-/ /LSTMC[L;0]::LSTMC[FW;LSTMT[FW]],LSTMC[BW;LSTMT[BW]]; 
-
-/ 	LSTMT[L]::LSTMT[L]+1;
-/ 	t:LSTMT[L];
-
-/ 	H:"f"$LSTMH[L;T-1];
-
-/ 	k:(1%1+exp(-1*((LWH[0;L]$h)+(LWX[0;L]$xt)+LB[0;L])));
-/ 	LSTMIG[L]::(LSTMIG[L], enlist k);
-
-/ 	k:(1%1+exp(-1*((LWH[1;L]$h)+(LWX[1;L]$xt)+LB[1;L])));
-/ 	LSTMFG[L]::(LSTMFG[L], enlist k);
-
-/ 	k:(1%1+exp(-1*((LWH[2;L]$h)+(LWX[2;L]$xt)+LB[2;L])));
-/ 	LSTMOG[L]::(LSTMOG[L], enlist k);
-
-/ 	TMP:(LWH[3;L]$h)+(LWX[3;L]$xt)+LB[3;L];
-/ 	k:((exp(TMP)-exp(-1*TMP)))%((exp(TMP)+exp(-1*TMP)));
-/ 	LSTMCUPD[L]::(LSTMCUPD[L], enlist k);
-
-/ 	TMP:(raze LSTMIG[L;T]*LSTMCUPD[L;T])+(raze LSTMFG[L;T])*LSTMC[L;T-1];
-/ 	LSTMC[L]::(LSTMC[L], enlist TMP);
-
-/ 	TMP:((exp(TMP)-exp(-1*TMP)))%((exp(TMP)+exp(-1*TMP)));
-/ 	LSTMCT[L]::(LSTMCT[L], enlist TMP);
-
-/ 	TMP:LSTMOG[L;T]*LSTMCT[L;T];
-/ 	LSTMH[L]::(LSTMH[L], enlist TMP);
-
-/ 	LSTMX[L]::(LSTMX[L], enlist xt);
-
-/ 	:LSTMH[L;T]};
-
-
-
-
-
-
