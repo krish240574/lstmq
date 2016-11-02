@@ -19,8 +19,8 @@ CHAR_TO_IX:CHARS, 'til count CHARS;
 SEQLEN:25;
 
 ESZ:VOCAB_SIZE;
-HSZ:30; / ESZ = 120
-OSZ:4; / 
+HSZ:VOCAB_SIZE; 
+OSZ:VOCAB_SIZE; 
 
 / Softmax variables
 SMPREDS:();
@@ -41,11 +41,9 @@ LWX:((HSZ,ESZ)#SAMPLER[MASTER;1000];
 	(HSZ,ESZ)#SAMPLER[MASTER;1000];
 	(HSZ,ESZ)#SAMPLER[MASTER;1000];
 	(HSZ,ESZ)#SAMPLER[MASTER;1000]);
-LB:(0f;0f;0f;0f);
-LDB:((1,HSZ)#0f;
-	(1,HSZ)#0f;
-	(1,HSZ)#0f;
-	(1,HSZ)#0f); / bi;bf;bo;bj
+LB:((HSZ)#0f;(HSZ)#0f;(HSZ)#0f;(HSZ)#0f); / bi;bf;bo;bj
+LDB:((HSZ)#0f;(HSZ)#0f;(HSZ)#0f;(HSZ)#0f); / bi;bf;bo;bj
+
 LDWX:((HSZ,ESZ)#0f;
 	(HSZ,ESZ)#0f;
 	(HSZ,ESZ)#0f;
@@ -101,60 +99,55 @@ LSTMFW:{[XT] L:0;
 	:LSTMH[T]
    };
 
-LSTMBW:{[L;DH] T:LSTMT[L];FW:0;BW:1;DCDR:2;
-	DH:DH+raze LDHPREV[L]; 
-
-	TMP:raze LSTMCT[L;T]; 
-	DC:raze ((1-TMP*TMP)*LSTMOG[L;T]*DH)+raze LDCPREV[L]; 
-
-	TMP:LSTMIG[L;T]; 
-	DINPUT:raze (TMP*(1-TMP))*LSTMCUPD[L;T]*DC; 
-
-	TMP:LSTMFG[L;T]; 
-	DFORGET:raze (TMP*(1-TMP))*LSTMC[L;T-1]*DC; 
-
-	TMP:LSTMOG[L;T]; 
-	DOUTPUT:raze (TMP*(1-TMP))*LSTMCT[L;T]*DH; 
-
-	TMP:LSTMCUPD[L;T]; 
-	DUPDATE:raze (1-TMP*TMP)*LSTMIG[L;T]*DC; 
-
-	LDCPREV[L]::LSTMFG[L;T]*DC; 
-
-	/LDB::LDB+((DINPUT;DFORGET;DOUTPUT;DUPDATE))
-	LDB[0;L]::LDB[0;L]+DINPUT;
-	LDB[1;L]::LDB[1;L]+DFORGET;
-	LDB[2;L]::LDB[2;L]+DOUTPUT; 
-	LDB[3;L]::LDB[3;L]+DUPDATE; 
-
-	HIN:LSTMH[L;T-1]; 
-	/LDWX::LDWX+((DINPUT*/:LSTMX[L;T]);(DFORGET*/:LSTMX[L;T]);(DOUTPUT*/:LSTMX[L;T]);(DUPDATE*/:LSTMX[L;T]))
-	LDWX[0;L]::LDWX[0;L]+ (DINPUT*/:\: raze LSTMX[L;T]); 
-	LDWX[1;L]::LDWX[1;L]+ (DFORGET*/:\: raze LSTMX[L;T]);
-	LDWX[2;L]::LDWX[2;L]+ (DOUTPUT*/:\: raze LSTMX[L;T]); 
-	LDWX[3;L]::LDWX[3;L]+ (DUPDATE*/:\: raze LSTMX[L;T]);
-	/kumar;
-
+LSTMBW:{[DH] T:LSTMT;
 	
-	/LDWH::LDWH+((DINPUT*/:LSTMH[L;T]);(DFORGET*/:LSTMH[L;T]);(DOUTPUT*/:LSTMH[L;T]);(DUPDATE*/:LSTMH[L;T]))
-	LDWH[0;L]::LDWH[0;L]+(DINPUT */:\: HIN);
-	LDWH[1;L]::LDWH[1;L]+(DFORGET */:\: HIN);
-	LDWH[2;L]::LDWH[2;L]+(DOUTPUT */:\: HIN);
-	LDWH[3;L]::LDWH[3;L]+(DUPDATE */:\: HIN);
+	DH:DH+ LDHPREV; 
 
-	/LDHPREV[L]::((flip LWH[0;L])$DINPUT) + ((flip LWH[1;L])$DFORGET) + ((flip LWH[2;L])$DOUTPUT) + ((flip LWH[3;L])$DUPDATE);
-	/LDHPREV[L]::(flip LWH[0;L];flip LWH[1;L];flip LWH[2;L];flip LWH[3;L])$(4 1)#(DINPUT;DFORGET;DOUTPUT;DUPDATE)
-	LDHPREV[L]::((flip LWH[0;L])$DINPUT);
-	LDHPREV[L]::LDHPREV[L]+((flip LWH[1;L])$DFORGET);
-	LDHPREV[L]::LDHPREV[L]+((flip LWH[2;L])$DOUTPUT);
-	LDHPREV[L]::LDHPREV[L]+((flip LWH[3;L])$DUPDATE);
+	TMP:raze LSTMCT[T]; 
+	DC:raze ((1-TMP*TMP)*LSTMOG[T]* flip DH)+raze LDCPREV; 
 
-	/dX::(flip LWX[0;L];flip LWX[1;L];flip LWX[2;L];flip LWX[3;L])$(4 1)#(DINPUT;DFORGET;DOUTPUT;DUPDATE)
-	dX:(flip LWX[0;L])$DINPUT;
-	dX:dX+(flip LWX[1;L])$DFORGET;
-	dX:dX+(flip LWX[2;L])$DOUTPUT;
-	dX:dX+(flip LWX[3;L])$DUPDATE;
-	LSTMT[L]::LSTMT[L]-1;
+	TMP:LSTMIG[T]; 
+	DINPUT:raze (TMP*(1-TMP))*LSTMCUPD[T]*DC; 
+
+	TMP:LSTMFG[T]; 
+	DFORGET:raze (TMP*(1-TMP))*LSTMC[T-1]*DC; 
+
+	TMP:LSTMOG[T]; 
+	DOUTPUT:raze (TMP*(1-TMP))*LSTMCT[T]*flip DH; 
+
+	TMP:LSTMCUPD[T]; 
+	DUPDATE:raze (1-TMP*TMP)*LSTMIG[T]*DC; 
+
+	LDCPREV::flip LSTMFG[T]*DC; 
+
+	LDB[0]::LDB[0]+DINPUT;
+	LDB[1]::LDB[1]+DFORGET;
+	LDB[2]::LDB[2]+DOUTPUT; 
+	LDB[3]::LDB[3]+DUPDATE; 
+
+	HIN:LSTMH[T-1]; 
+
+	LDWX[0]::LDWX[0]+(DINPUT*/:\: raze LSTMX[T]); 
+	LDWX[1]::LDWX[1]+(DFORGET*/:\: raze LSTMX[T]);
+	LDWX[2]::LDWX[2]+(DOUTPUT*/:\: raze LSTMX[T]); 
+	LDWX[3]::LDWX[3]+(DUPDATE*/:\: raze LSTMX[T]);
+
+	LDWH[0]+::(DINPUT*/:\:  raze HIN);
+	LDWH[1]+::(DFORGET*/:\: raze HIN);
+	LDWH[2]+::(DOUTPUT*/:\: raze HIN);
+	LDWH[3]+::(DUPDATE*/:\: raze HIN);
+
+	LDHPREV::(1,HSZ)#(LWH[0]$DINPUT);
+	LDHPREV::LDHPREV+(1,HSZ)#(LWH[1]$DFORGET);
+	LDHPREV::LDHPREV+(1,HSZ)#(LWH[2]$DOUTPUT);
+	LDHPREV::LDHPREV+(1,HSZ)#(LWH[3]$DUPDATE);
+
+	dX:(flip LWX[0])$DINPUT;
+	dX:dX+(flip LWX[1])$DFORGET;
+	dX:dX+(flip LWX[2])$DOUTPUT;
+	dX:dX+(flip LWX[3])$DUPDATE;
+
+	LSTMT::LSTMT-1;
 	:dX
  };
 
@@ -170,10 +163,14 @@ INITLAYER:{[L]
 	LDHPREV::(1,HSZ)#0;
 	LDCPREV::(1,HSZ)#0;
 
-	LSTMH[;]:0.0;
-	LSTMC[;]:0.0;
+	LSTMH:(1,HSZ)#0.0;
+	LSTMC:(1,HSZ)#0.0;
 
-	LDB[;;]:0.0;
+	LDB:((1,HSZ)#0f;
+	(1,HSZ)#0f;
+	(1,HSZ)#0f;
+	(1,HSZ)#0f); / bi;bf;bo;bj
+
 	LDWX[;;]::0.0;
 	LDWH[;;]::0.0;
 
@@ -207,8 +204,8 @@ SOFTMAXBW:{[i] SMT::SMT-1;
 	:DELTA
   };
 
-NORMALIZEGRADS:{[N]LDWX::LDWX%N;LDWH::LDWH%N;EMBDW::EMBDW%N;SMDW::SMDW%N};
-TAKESTEP:{[LR]LWX::LWX-LR*LDWX;LWH::LWH-LR*LDWH;LB::LB-LR*LDB;EMBW::EMBW-LR*EMBDW;SMW::SMW-LR*SMDW};
+NORMALIZEGRADS:{[N]show N;LDWX::LDWX%N;LDWH::LDWH%N;SMDW::SMDW%N};
+TAKESTEP:{[LR]LWX::LWX-LR*LDWX;LWH::LWH-LR*LDWH;LB::LB-LR*LDB;SMW::SMW-LR*SMDW};
 
 LR:0.1;
 CLIPGRAD:5.0;
@@ -220,36 +217,46 @@ TRAIN:{[INPUT;TARGETS]
 	COST:0;
 	/ Forward
 	while[T<count INPUT;
-		$[0=count XS;XS::(1,VOCAB_SIZE)#0;XS::XS,(1,VOCAB_SIZE)#0];
-		XS[T;INPUT[T][1]]:1;
-		H:LSTMFW["f"$(VOCAB_SIZE,1)#XS[T]];
+		XS::raze (1,VOCAB_SIZE)#0;
+		XS[INPUT[T][1]]:1;
+		H:LSTMFW["f"$(VOCAB_SIZE,1)#XS];
+		/H:LSTMFW[XS];
 		TMP:(SOFTMAXFW[H])[[TARGETS[T];0]];
 		COST+:TMP;	
 		T+:1;
 		];
 	/ Backward
+	T:T-1;
 	while [T>0;
-		H:SOFTMAXBW[TARGETS[T]];
+		H:SOFTMAXBW[TARGETS[T][1]];
 		H:LSTMBW[H];
-		T:-1;
+		T:T-1;
 		];
+
 	/ Normalize and SGD
-	GRADNORM: sqrt((sum over LDWX xexp 2)+(sum over LDWH xexp 2)+(sum over EMBDW xexp 2)+(sum over SMDW xexp 2));
+	GRADNORM:sqrt((sum over LDWX xexp 2)+(sum over LDWH xexp 2)+(sum over SMDW xexp 2));
 	if[GRADNORM>CLIPGRAD;NORMALIZEGRADS(GRADNORM%CLIPGRAD)];
 	TAKESTEP[LR];
+	/show GRADNORM;
+	show "Cost = ";
+	show COST;
 	:COST
 	};
 
- 
+I:0;
 SMOOTHLOSS:(neg log (1.0%VOCAB_SIZE)*SEQLEN);
 while [I<1000000;
  / Start sending batches of chars to the LSTM
- 	INPUT:TXT[P+til(P+SEQLEN)];
+ 	INPUT:TXT[P+til(SEQLEN)];
  	INPUT:INPUT,'(CHARS?INPUT);
- 	TARGETS:TXT[(P+1)+til(P+1+SEQLEN)];
+ 	TARGETS:TXT[(P+1)+til(SEQLEN)];
  	TARGETS:TARGETS,'(CHARS?TARGETS);
+ 	show count INPUT;
+ 	show count TARGETS;
  	COST:TRAIN[INPUT;TARGETS];
  	SMOOTHLOSS:SMOOTHLOSS*0.999+COST*0.001;
+ 	/ show "Smooth loss = ";
+ 	/ show SMOOTHLOSS;
  	I+:1;
  	P+:1;
  	];
