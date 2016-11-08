@@ -8,7 +8,7 @@ SAMPLER:{[MASTER;C]while[C>count FLIST;
 		FLIST::FLIST,DATA[SMPL]];
 	m:MASTER[where not MASTER in SMPL]];
 	:FLIST[til C]
- }
+ };
 / Read text input
 TXT:raze " " vs raze read0 `:polstm.q;
 CHARS: distinct TXT;
@@ -16,6 +16,7 @@ VOCAB_SIZE:count CHARS;
 P:0;
 I:0;
 CHAR_TO_IX:CHARS, 'til count CHARS;
+IX_TO_CHARS:(til count CHARS),'CHARS;
 SEQLEN:25;
 
 ESZ:VOCAB_SIZE;
@@ -220,7 +221,6 @@ TRAIN:{[INPUT;TARGETS]
 		XS::raze (1,VOCAB_SIZE)#0;
 		XS[INPUT[T][1]]:1;
 		H:LSTMFW["f"$(VOCAB_SIZE,1)#XS];
-		/H:LSTMFW[XS];
 		TMP:(SOFTMAXFW[H])[[TARGETS[T];0]];
 		COST+:TMP;	
 		T+:1;
@@ -231,6 +231,9 @@ TRAIN:{[INPUT;TARGETS]
 		H:SOFTMAXBW[TARGETS[T][1]];
 		H:LSTMBW[H];
 		T:T-1;
+		show "_________________";
+		show TARGETS[T][1];
+		show "_________________";
 		];
 
 	/ Normalize and SGD
@@ -243,20 +246,48 @@ TRAIN:{[INPUT;TARGETS]
 	:COST
 	};
 
+SAMPLE:{[SEED;N]
+	XT:raze (1,VOCAB_SIZE)#0;
+	XT[SEED]:1;
+	I:0;
+	KIX:();
+	while[I<N;
+			INITLAYER[0];
+
+			H:LSTMFW["f"$(VOCAB_SIZE,1)#XT];
+			H:SOFTMAXFW[H];
+LS
+			XT:raze (1,VOCAB_SIZE)#0;
+			INDEX:sum 1?count H;
+			XT[INDEX]:1;
+			$[0=count KIX;KIX:INDEX;KIX:KIX,INDEX];
+
+			I+:1;
+		];
+		:KIX;
+	};
+
+
 I:0;
-SMOOTHLOSS:(neg log (1.0%VOCAB_SIZE)*SEQLEN);
+/ SMOOTHLOSS:(neg log (1.0%VOCAB_SIZE)*SEQLEN);
 while [I<1000000;
- / Start sending batches of chars to the LSTM
- 	INPUT:TXT[P+til(SEQLEN)];
- 	INPUT:INPUT,'(CHARS?INPUT);
- 	TARGETS:TXT[(P+1)+til(SEQLEN)];
- 	TARGETS:TARGETS,'(CHARS?TARGETS);
- 	show count INPUT;
- 	show count TARGETS;
- 	COST:TRAIN[INPUT;TARGETS];
- 	SMOOTHLOSS:SMOOTHLOSS*0.999+COST*0.001;
- 	/ show "Smooth loss = ";
- 	/ show SMOOTHLOSS;
- 	I+:1;
- 	P+:1;
+		if[(I=0) or (P+SEQLEN+1)>=count INPUT;P:0];
+	 / Start sending batches of chars to the LSTM
+	 	INPUT:TXT[P+til(SEQLEN)];
+	 	INPUT:INPUT,'(CHARS?INPUT);
+
+	 	TARGETS:TXT[(P+1)+til(SEQLEN)];
+	 	TARGETS:TARGETS,'(CHARS?TARGETS);
+
+	 	COST:TRAIN[INPUT;TARGETS];
+	 	/ SMOOTHLOSS:SMOOTHLOSS*0.999+COST*0.001;
+	 	/ show "Smooth loss = ";
+	 	/ show SMOOTHLOSS;
+	 	I+:1;
+	 	P+:1;
+
+	 	/Sample from NN periodically
+	 	N:200;
+	 	SAMPLEIX:SAMPLE[INPUT[0][1];N];
+	 	show IX_TO_CHARS[SAMPLEIX;1];
  	];
