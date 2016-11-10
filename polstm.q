@@ -10,7 +10,7 @@ SAMPLER:{[MASTER;C]while[C>count FLIST;
 	:FLIST[til C]
  };
 / Read text input
-TXT:raze " " vs raze read0 `:polstm.q;
+TXT:raze " " vs raze read0 `:paul.txt;
 CHARS: distinct TXT;
 VOCAB_SIZE:count CHARS;
 P:0;
@@ -69,34 +69,39 @@ LDCPREV:(1,HSZ)#0;
 
 GETLOSS:{[DUMMY]A::SMTARGETS,'reverse SMPREDS;:sum {neg log(A[x][A[x;0]+1])}each til count SMTARGETS};
 
-LSTMFW:{[XT] L:0;
+LSTMFW:{[XT;SF] L:0;
 	LSTMT::LSTMT+1; 
 
 	T:LSTMT;  H:"f"$LSTMH[T-1];
 
-	k:(1%1+exp(-1*((LWH[0]$H)+(LWX[0]$XT)+LB[0])));
-	LSTMIG::(LSTMIG, enlist k);
+	ki:(1%1+exp(-1*((LWH[0]$H)+(LWX[0]$XT)+LB[0])));
 
-	k:(1%1+exp(-1*((LWH[1]$H)+(LWX[1]$XT)+LB[1])));
-	LSTMFG::(LSTMFG, enlist k);
+	kf:(1%1+exp(-1*((LWH[1]$H)+(LWX[1]$XT)+LB[1])));
 
-	k:(1%1+exp(-1*((LWH[2]$H)+(LWX[2]$XT)+LB[2])));
-	LSTMOG::(LSTMOG, enlist k);
+	ko:(1%1+exp(-1*((LWH[2]$H)+(LWX[2]$XT)+LB[2])));
 
 	TMP:(LWH[3]$H)+(LWX[3]$XT)+LB[3];
-	k:((exp(TMP)-exp(-1*TMP)))%((exp(TMP)+exp(-1*TMP)));
-	LSTMCUPD::(LSTMCUPD, enlist k);
+	ku:((exp(TMP)-exp(-1*TMP)))%((exp(TMP)+exp(-1*TMP)));
 
-	TMP:(raze LSTMIG[T]*LSTMCUPD[T])+(raze LSTMFG[T])*LSTMC[T-1];
-	LSTMC::(LSTMC, enlist TMP);
-	
-	TMP:((exp(TMP)-exp(-1*TMP)))%((exp(TMP)+exp(-1*TMP)));
- 	LSTMCT::(LSTMCT, enlist TMP);
+	if[0=SF;
+		LSTMIG::(LSTMIG, enlist ki);
+		LSTMFG::(LSTMFG, enlist kf);
+		LSTMOG::(LSTMOG, enlist ko);
+		LSTMCUPD::(LSTMCUPD, enlist ku);
+	];
 
-	TMP:LSTMOG[T]*LSTMCT[T];
-	LSTMH::(LSTMH, enlist TMP);
+	TMPC:(raze ki*ku)+(raze kf)*LSTMC[T-1];
+	TMPCT:((exp(TMPC)-exp(-1*TMPC)))%((exp(TMPC)+exp(-1*TMPC)));
 
-	LSTMX::(LSTMX, enlist XT);
+	TMPH:ko*TMPCT;
+
+ 	if[0=SF;
+ 		LSTMC::(LSTMC, enlist TMPC);
+ 		LSTMCT::(LSTMCT, enlist TMPCT);
+ 		LSTMH::(LSTMH, enlist TMPH);
+		LSTMX::(LSTMX, enlist raze XT);
+ 		];
+
 	:LSTMH[T]
    };
 
@@ -128,10 +133,10 @@ LSTMBW:{[DH] T:LSTMT;
 
 	HIN:LSTMH[T-1]; 
 
-	LDWX[0]::LDWX[0]+(DINPUT*/:\: raze LSTMX[T]); 
-	LDWX[1]::LDWX[1]+(DFORGET*/:\: raze LSTMX[T]);
-	LDWX[2]::LDWX[2]+(DOUTPUT*/:\: raze LSTMX[T]); 
-	LDWX[3]::LDWX[3]+(DUPDATE*/:\: raze LSTMX[T]);
+	LDWX[0]::LDWX[0]+(DINPUT*/:\: LSTMX[T]); 
+	LDWX[1]::LDWX[1]+(DFORGET*/:\: LSTMX[T]);
+	LDWX[2]::LDWX[2]+(DOUTPUT*/:\: LSTMX[T]); 
+	LDWX[3]::LDWX[3]+(DUPDATE*/:\: LSTMX[T]);
 
 	LDWH[0]+::(DINPUT*/:\:  raze HIN);
 	LDWH[1]+::(DFORGET*/:\: raze HIN);
@@ -184,12 +189,14 @@ INITLAYER:{[L]
 /
 softmax forward pass
 \
-SOFTMAXFW:{[IX] SMT::SMT+1;
+SOFTMAXFW:{[IX;SF] SMT::SMT+1;
 	YY:raze SMW$IX;
 	YY:exp(YY-max YY);
 	YY:YY%sum YY;
-	$[0=count SMPREDS;SMPREDS::(1,OSZ)#YY;SMPREDS::(SMPREDS, enlist YY)];
-	$[0=count SMX;SMX::(1,HSZ)#IX;SMX::(SMX, enlist IX)];
+	if[0=SF;
+		$[0=count SMPREDS;SMPREDS::(1,OSZ)#YY;SMPREDS::(SMPREDS, enlist YY)];
+		$[0=count SMX;SMX::(1,HSZ)#IX;SMX::(SMX, enlist IX)];
+	];
 	:YY};
 
 /
@@ -205,23 +212,23 @@ SOFTMAXBW:{[i] SMT::SMT-1;
 	:DELTA
   };
 
-NORMALIZEGRADS:{[N]show N;LDWX::LDWX%N;LDWH::LDWH%N;SMDW::SMDW%N};
+NORMALIZEGRADS:{[N]LDWX::LDWX%N;LDWH::LDWH%N;SMDW::SMDW%N};
 TAKESTEP:{[LR]LWX::LWX-LR*LDWX;LWH::LWH-LR*LDWH;LB::LB-LR*LDB;SMW::SMW-LR*SMDW};
 
 LR:0.1;
 CLIPGRAD:5.0;
 XS:();
 TRAIN:{[INPUT;TARGETS]
-	/ One-of-K input
 	INITLAYER[0];
 	T:0;
 	COST:0;
+	SF:0;
 	/ Forward
 	while[T<count INPUT;
 		XS::raze (1,VOCAB_SIZE)#0;
 		XS[INPUT[T][1]]:1;
-		H:LSTMFW["f"$(VOCAB_SIZE,1)#XS];
-		TMP:(SOFTMAXFW[H])[[TARGETS[T];0]];
+		H:LSTMFW[("f"$(VOCAB_SIZE,1)#XS);SF];
+		TMP:(SOFTMAXFW[H;SF])[[TARGETS[T];0]];
 		COST+:TMP;	
 		T+:1;
 		];
@@ -231,9 +238,6 @@ TRAIN:{[INPUT;TARGETS]
 		H:SOFTMAXBW[TARGETS[T][1]];
 		H:LSTMBW[H];
 		T:T-1;
-		show "_________________";
-		show TARGETS[T][1];
-		show "_________________";
 		];
 
 	/ Normalize and SGD
@@ -251,12 +255,11 @@ SAMPLE:{[SEED;N]
 	XT[SEED]:1;
 	I:0;
 	KIX:();
+	SF:1;
 	while[I<N;
 			INITLAYER[0];
-
-			H:LSTMFW["f"$(VOCAB_SIZE,1)#XT];
-			H:SOFTMAXFW[H];
-LS
+			H:LSTMFW["f"$(VOCAB_SIZE,1)#XT;SF];
+			H:SOFTMAXFW[H;SF];
 			XT:raze (1,VOCAB_SIZE)#0;
 			INDEX:sum 1?count H;
 			XT[INDEX]:1;
@@ -271,21 +274,21 @@ LS
 I:0;
 / SMOOTHLOSS:(neg log (1.0%VOCAB_SIZE)*SEQLEN);
 while [I<1000000;
-		if[(I=0) or (P+SEQLEN+1)>=count INPUT;P:0];
 	 / Start sending batches of chars to the LSTM
 	 	INPUT:TXT[P+til(SEQLEN)];
 	 	INPUT:INPUT,'(CHARS?INPUT);
 
+		if[(I=0) or ((P+SEQLEN+1)>=count INPUT);P:0;INITLAYER[0]];
+
 	 	TARGETS:TXT[(P+1)+til(SEQLEN)];
 	 	TARGETS:TARGETS,'(CHARS?TARGETS);
-
+	 	if[I=20;show shape LSTMH;];
 	 	COST:TRAIN[INPUT;TARGETS];
 	 	/ SMOOTHLOSS:SMOOTHLOSS*0.999+COST*0.001;
 	 	/ show "Smooth loss = ";
 	 	/ show SMOOTHLOSS;
 	 	I+:1;
 	 	P+:1;
-
 	 	/Sample from NN periodically
 	 	N:200;
 	 	SAMPLEIX:SAMPLE[INPUT[0][1];N];
