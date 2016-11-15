@@ -1,16 +1,20 @@
 / Gaussian, mean 0 stdev 0.1 - 1000 numbers
 GDIST:"F"$trim "," vs raze read0 `gdist.txt;
 MASTER:til count GDIST;DATA:GDIST;FLIST:(); /vars for SAMPLER
-SAMPLER:{[MASTER;C]while[C>count FLIST;
-	SMPL:distinct (floor (count MASTER)%2)?(MASTER);
-	$[0=count FLIST;
-		FLIST::DATA[SMPL];
-		FLIST::FLIST,DATA[SMPL]];
-	m:MASTER[where not MASTER in SMPL]];
+SAMPLER:{[MASTER;C]
+	while[C>count FLIST;
+		SMPL:distinct (floor (count MASTER)%2)?(MASTER);
+		$[0=count FLIST;
+			FLIST::DATA[SMPL];
+			FLIST::FLIST,DATA[SMPL]
+		];
+		m:MASTER[where not MASTER in SMPL]
+	];
 	:FLIST[til C]
  };
 / Read text input
-TXT:raze " " vs raze read0 `:paul.txt;
+k:read0 `:shakespeare.txt;
+TXT:" " sv k[where (count each k="\"")>0];
 CHARS: distinct TXT;
 VOCAB_SIZE:count CHARS;
 P:0;
@@ -30,8 +34,6 @@ SMTARGETS:();
 SMT:0;
 SMW:(OSZ,HSZ)#SAMPLER[MASTER;1000]; /osz,hsz
 SMDW:(OSZ,HSZ)#SAMPLER[MASTER;1000]; /osz,hsz
-
-
 
 /**************************L*S*T*M******************************************/
 LWH:((HSZ,HSZ)#SAMPLER[MASTER;1000];
@@ -73,15 +75,21 @@ LSTMFW:{[XT;SF] L:0;
 	LSTMT::LSTMT+1; 
 
 	T:LSTMT;  H:"f"$LSTMH[T-1];
+	K:raze H;K[where K=0f]:0.0;H:(shape H)#K;
 
 	ki:(1%1+exp(-1*((LWH[0]$H)+(LWX[0]$XT)+LB[0])));
+	ki[where raze ki<1e-100]:0.0;
 
 	kf:(1%1+exp(-1*((LWH[1]$H)+(LWX[1]$XT)+LB[1])));
+	kf[where raze kf<1e-100]:0.0;
 
 	ko:(1%1+exp(-1*((LWH[2]$H)+(LWX[2]$XT)+LB[2])));
+	ko[where raze ko<1e-100]:0.0;
 
 	TMP:(LWH[3]$H)+(LWX[3]$XT)+LB[3];
 	ku:((exp(TMP)-exp(-1*TMP)))%((exp(TMP)+exp(-1*TMP)));
+	ku[where raze ku<1e-100]:0.0;
+
 
 	if[0=SF;
 		LSTMIG::(LSTMIG, enlist ki);
@@ -91,9 +99,14 @@ LSTMFW:{[XT;SF] L:0;
 	];
 
 	TMPC:(raze ki*ku)+(raze kf)*LSTMC[T-1];
+	TMPC[where raze TMPC<1e-100]:0.0;
+
 	TMPCT:((exp(TMPC)-exp(-1*TMPC)))%((exp(TMPC)+exp(-1*TMPC)));
+	TMPCT[where raze TMPCT<1e-100]:0.0;
+
 
 	TMPH:ko*TMPCT;
+	TMPH[where raze TMPH<1e-100]:0.0;
 
  	if[0=SF;
  		LSTMC::(LSTMC, enlist TMPC);
@@ -190,6 +203,7 @@ INITLAYER:{[L]
 softmax forward pass
 \
 SOFTMAXFW:{[IX;SF] SMT::SMT+1;
+	K:raze IX;K[where K=0f]:0.0;IX:(shape IX)#K;
 	YY:raze SMW$IX;
 	YY:exp(YY-max YY);
 	YY:YY%sum YY;
@@ -228,6 +242,7 @@ TRAIN:{[INPUT;TARGETS]
 		XS::raze (1,VOCAB_SIZE)#0;
 		XS[INPUT[T][1]]:1;
 		H:LSTMFW[("f"$(VOCAB_SIZE,1)#XS);SF];
+		K:raze H;K[where K=0f]:0.0;H:(shape H)#K;
 		TMP:(SOFTMAXFW[H;SF])[[TARGETS[T];0]];
 		COST+:TMP;	
 		T+:1;
@@ -245,8 +260,8 @@ TRAIN:{[INPUT;TARGETS]
 	if[GRADNORM>CLIPGRAD;NORMALIZEGRADS(GRADNORM%CLIPGRAD)];
 	TAKESTEP[LR];
 	/show GRADNORM;
-	show "Cost = ";
-	show COST;
+	/show "Cost = ";
+	/show COST;
 	:COST
 	};
 
@@ -264,7 +279,6 @@ SAMPLE:{[SEED;N]
 			INDEX:sum 1?count H;
 			XT[INDEX]:1;
 			$[0=count KIX;KIX:INDEX;KIX:KIX,INDEX];
-
 			I+:1;
 		];
 		:KIX;
@@ -274,23 +288,29 @@ SAMPLE:{[SEED;N]
 I:0;
 / SMOOTHLOSS:(neg log (1.0%VOCAB_SIZE)*SEQLEN);
 while [I<1000000;
-	 / Start sending batches of chars to the LSTM
-	 	INPUT:TXT[P+til(SEQLEN)];
+
+		if[(I=0) or ((P+SEQLEN+1)>=count TXT[P+til SEQLEN]);P:0;LSTMH:(1,HSZ)#0.0];
+
+	 	/ Start sending batches of chars to the LSTM
+		INPUT:TXT[P+til SEQLEN];
 	 	INPUT:INPUT,'(CHARS?INPUT);
 
-		if[(I=0) or ((P+SEQLEN+1)>=count INPUT);P:0;INITLAYER[0]];
-
-	 	TARGETS:TXT[(P+1)+til(SEQLEN)];
+	 	TARGETS:TXT[(P+1)+til SEQLEN];
 	 	TARGETS:TARGETS,'(CHARS?TARGETS);
-	 	if[I=20;show shape LSTMH;];
 	 	COST:TRAIN[INPUT;TARGETS];
 	 	/ SMOOTHLOSS:SMOOTHLOSS*0.999+COST*0.001;
 	 	/ show "Smooth loss = ";
 	 	/ show SMOOTHLOSS;
+	 	/show "Counter = ";
+	 	if[0=I mod 10;show I];
 	 	I+:1;
 	 	P+:1;
+	 	
 	 	/Sample from NN periodically
-	 	N:200;
-	 	SAMPLEIX:SAMPLE[INPUT[0][1];N];
-	 	show IX_TO_CHARS[SAMPLEIX;1];
+	 	if[0=I mod 100;
+		 	SAMPLEIX:SAMPLE[INPUT[0][1];200];
+
+		 	show (I;COST;IX_TO_CHARS[SAMPLEIX;1]);
+	 	];
+	 	/show IX_TO_CHARS[-1+SAMPLEIX;1];
  	];
