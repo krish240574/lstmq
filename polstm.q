@@ -1,5 +1,6 @@
 / Gaussian, mean 0 stdev 0.1 - 1000 numbers
 GDIST:"F"$trim "," vs raze read0 `gdist.txt;
+/ sampler[] samples C numbers from a MASTER list
 MASTER:til count GDIST;DATA:GDIST;FLIST:(); /vars for SAMPLER
 SAMPLER:{[MASTER;C]
 	while[C>count FLIST;
@@ -12,19 +13,21 @@ SAMPLER:{[MASTER;C]
 	];
 	:FLIST[til C]
  };
-/ Read text input
+/ Read text input - shakespearean text
 k:read0 `:shakespeare.txt;
 TXT:" " sv k[where (count each k="\"")>0];
 CHARS: distinct TXT;
 VOCAB_SIZE:count CHARS;
 P:0;
 I:0;
+/ Utility methods - characters to index, and vice versa
 CHAR_TO_IX:CHARS, 'til count CHARS;
 IX_TO_CHARS:(til count CHARS),'CHARS;
-SEQLEN:25;
+
+SEQLEN:25; / For now
 
 ESZ:VOCAB_SIZE;
-HSZ:VOCAB_SIZE; 
+HSZ:100; 
 OSZ:VOCAB_SIZE; 
 
 / Softmax variables
@@ -69,8 +72,13 @@ LSTMCUPD:(1 1)#"0";
 LDHPREV:(1,HSZ)#0;
 LDCPREV:(1,HSZ)#0;
 
+/ Loss function
 GETLOSS:{[DUMMY]A::SMTARGETS,'reverse SMPREDS;:sum {neg log(A[x][A[x;0]+1])}each til count SMTARGETS};
 
+/ Forward propogation - through time 
+/ The principle is to unfold the LSTM through time and 
+/ treat it as a simple multilayer perceptron
+/ Apply simple forward prop, at each time step then. 
 LSTMFW:{[XT;SF] L:0;
 	LSTMT::LSTMT+1; 
 
@@ -89,7 +97,6 @@ LSTMFW:{[XT;SF] L:0;
 	TMP:(LWH[3]$H)+(LWX[3]$XT)+LB[3];
 	ku:((exp(TMP)-exp(-1*TMP)))%((exp(TMP)+exp(-1*TMP)));
 	ku[where raze ku<1e-100]:0.0;
-
 
 	if[0=SF;
 		LSTMIG::(LSTMIG, enlist ki);
@@ -117,7 +124,7 @@ LSTMFW:{[XT;SF] L:0;
 
 	:LSTMH[T]
    };
-
+/ Backward propogation through time
 LSTMBW:{[DH] T:LSTMT;
 	
 	DH:DH+ LDHPREV; 
@@ -169,7 +176,7 @@ LSTMBW:{[DH] T:LSTMT;
 	LSTMT::LSTMT-1;
 	:dX
  };
-
+/ Initialise values for LSTM and softmax layers
 INITLAYER:{[L]
  	LSTMT::0;
 	LSTMX::"0";
@@ -225,13 +232,18 @@ SOFTMAXBW:{[i] SMT::SMT-1;
 	DELTA:(1,HSZ)#(flip SMW)$TMPD; 
 	:DELTA
   };
-
+/ Normalize gradients, if too high
 NORMALIZEGRADS:{[N]LDWX::LDWX%N;LDWH::LDWH%N;SMDW::SMDW%N};
+/ Take one gradient step
 TAKESTEP:{[LR]LWX::LWX-LR*LDWX;LWH::LWH-LR*LDWH;LB::LB-LR*LDB;SMW::SMW-LR*SMDW};
 
+/ Learning rate
 LR:0.1;
+/ If gradient sum above this value, clip
 CLIPGRAD:5.0;
 XS:();
+/ Training loop, send text as one hot encoded vectors, one
+/ character at a time. 
 TRAIN:{[INPUT;TARGETS]
 	INITLAYER[0];
 	T:0;
@@ -306,7 +318,7 @@ while [I<1000000;
 	 	I+:1;
 	 	P+:1;
 	 	
-	 	/Sample from NN periodically
+	 	/Sample from NN periodically to display
 	 	if[0=I mod 100;
 		 	SAMPLEIX:SAMPLE[INPUT[0][1];200];
 
