@@ -1,4 +1,3 @@
-////// TODO - fix LSTMC bloat bug - grows to very large size, code slows down. Jan 17, 2017 - 10.00 pm
 / Gaussian, mean 0 stdev 0.1 - 1000 numbers
 GDIST:"F"$trim "," vs raze read0 `gdist.txt;
 / sampler[] samples C numbers from a MASTER list
