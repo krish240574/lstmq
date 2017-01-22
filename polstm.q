@@ -37,7 +37,7 @@ SMPREDS:();
 SMX:();
 SMTARGETS:();
 SMT:0;
-SMW:(OSZ,HSZ)#SAMPLER[MASTER;1000]; /osz,hsz
+SMW:(OSZ,HSZ)#SAMPLER[MASTER;1000]; /osz,hsz 
 SMDW:(OSZ,HSZ)#SAMPLER[MASTER;1000]; /osz,hsz
 
 /**************************L*S*T*M******************************************/
