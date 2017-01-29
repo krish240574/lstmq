@@ -1,3 +1,6 @@
+/ Check sampler
+/ Xavier gdist
+/ Check sampling of H
 tanh:{((exp(x)-exp(-1*x)))%((exp(x)+exp(-1*x)))};
 sigmoid:{1%(1+exp neg x)}
 
@@ -14,7 +17,7 @@ SAMPLER:{[MASTER;C]
 		];
 		m:MASTER[where not MASTER in SMPL]
 	];
-	:FLIST[til C]
+	:0.01*FLIST[til C]
  };
 / Read text input - shakespearean text
 k:read0 `:cmplshake.txt;
@@ -32,7 +35,7 @@ IX_TO_CHARS:(til count CHARS),'CHARS;
 SEQLEN:25; / For now
 
 ESZ:VOCAB_SIZE;
-HSZ:50; 
+HSZ:25; 
 OSZ:VOCAB_SIZE; 
 
 / Softmax variables
@@ -113,7 +116,10 @@ LSTMFW:{[XT;SF] L:0;
 
 
 	TMPH:ko*TMPCT;
-	TMPH[where raze TMPH<1e-25]:-1e-25;
+	t:raze TMPH;
+	t[where t<-1e-25]:-1e-25;
+	TMPH:(HSZ,1)#t;
+/	TMPH[where raze TMPH<1e-25]:-1e-25;
 
  	if[0=SF;
  		LSTMC::(LSTMC, enlist TMPC);
@@ -217,7 +223,8 @@ SOFTMAXFW:{[IX;SF] SMT::SMT+1;
 		$[0=count SMPREDS;SMPREDS::(1,OSZ)#YY;SMPREDS::(SMPREDS, enlist YY)];
 		$[0=count SMX;SMX::(1,HSZ)#IX;SMX::(SMX, enlist IX)];
 	];
-	:YY};
+	:neg log SMPREDS[(SMT-1);TARGETS[SMT-1;1]]};
+/	:YY};
 
 /
 softmax backward pass
@@ -232,23 +239,25 @@ SOFTMAXBW:{[i] SMT::SMT-1;
 	:DELTA
   };
 
-NORMALIZEGRADS:{[N]LDWX::LDWX%N;LDWH::LDWH%N;{tx:raze LDWX[x];th:raze LDWH[x];th[where th<-1e-50]:-1e-50;tx[where tx<-1e-50]:-1e-50;LDWH[x]:(shape LDWH[x])#th;LDWX[x]:(shape LDWX[x])#tx;}each til count LDWX;SMDW::SMDW%N};
-TAKESTEP:{[LR]LWX::LWX-LR*LDWX;LWH::LWH-LR*LDWH;LB::LB-LR*LDB;SMW::SMW-LR*SMDW};
+NORMALIZEGRADS:{[N]LDWX::LDWX%N;LDWH::LDWH%N;SMDW::SMDW%N};
+TAKESTEP:{[LR]LWX::LWX-LR*LDWX;LWH::LWH-LR*LDWH;{tx:raze LDWX[x];th:raze LDWH[x];th[where th<-1e-50]:-1e-50;tx[where tx<-1e-50]:-1e-50;LDWH[x]:(shape LDWH[x])#th;LDWX[x]:(shape LDWX[x])#tx;}each til count LDWX;LB::LB-LR*LDB;SMW::SMW-LR*SMDW};
 
 LR:0.1;
 CLIPGRAD:5.0;
 XS:();
 TRAIN:{[INPUT;TARGETS]
 	T:0;
-	COST:0;
+	COST:0.0;
 	SF:0;
+	INITLAYER[0];
 	/ Forward
 	while[T<count INPUT;
 		XS::raze (1,VOCAB_SIZE)#0;
 		XS[INPUT[T][1]]:1;
 		H:LSTMFW[("f"$(VOCAB_SIZE,1)#XS);SF];
 		K:raze H;K[where K=0f]:0.0;H:(shape H)#K;
-		TMP:(SOFTMAXFW[H;SF])[[TARGETS[T];0]];
+		/TMP:(SOFTMAXFW[H;SF])[[TARGETS[T];0]];
+		TMP:SOFTMAXFW[H;SF];
 		COST+:TMP;	
 		T+:1;
 		];
@@ -288,7 +297,7 @@ SAMPLE:{[SEED;N]
 			H:t[2]*tanh((t[0]*s)+t[1]*LSTMC[LSTMT]);
 			/ Now softmax to get final preds
 			Y:raze SMW$H;
-			H:(exp Y)%(sum exp Y); / Need to fix this
+			H:(exp Y)%(sum exp Y);
 			XT:"f"$raze (1,VOCAB_SIZE)#0;
 			INDEX:sum 1?(idesc H)[til 10];
 			XT[INDEX]:1f;
@@ -324,13 +333,11 @@ while [I<1000000;
 	 	/Sample from NN periodically
 	 	if[0=I mod 100;
 		 	SAMPLEIX:SAMPLE[INPUT[sum 1?count INPUT][1];200];
-
+			/show GETLOSS[0];
 		 	show (COST;IX_TO_CHARS[SAMPLEIX;1]);
 			INITLAYER[0];
 	 	];
 
-		if[0=I mod 1000; LR:LR%2.0];
-		if[0=I mod 10000; LR:0.1];
 		
 	 	/show IX_TO_CHARS[-1+SAMPLEIX;1];
  	];
