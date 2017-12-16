@@ -3,7 +3,8 @@
 / Check sampling of H
 tanh:{((exp(x)-exp(-1*x)))%((exp(x)+exp(-1*x)))};
 sigmoid:{1%(1+exp neg x)}
-
+/ Util function fo 2d arrays of fixed size
+k)shape:{(#x),(#x[0])} 
 / Gaussian, mean 0 stdev 0.1 - 1000 numbers
 GDIST:"F"$trim "," vs raze read0 `gdist.txt;
 / sampler[] samples C numbers from a MASTER list
